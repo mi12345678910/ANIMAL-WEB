@@ -59,6 +59,57 @@ for img in bpy.data.images:
         else:
             print("MISSING texture:", img.name, p)
 
+# --- 2b. give the fur-card material its texture --------------------------
+# "M_GermanShepherd_Transparent" (140 tris: the neck ruff / fur cards) ships
+# with NO image texture at all - just a flat grey Base Color of (0.8,0.8,0.8),
+# which is why those faces render as grey slabs in the browser. This is a
+# material problem, not a UV problem: the UVs are fine, there was simply
+# nothing to sample. Point it at the same atlas as the body and wire the
+# image alpha through so the card silhouettes cut out.
+base_img = bpy.data.images.get("T_GermanShepherd_B.png")
+if base_img is None:
+    for i in bpy.data.images:
+        if i.source == "FILE" or i.packed_file:
+            base_img = i
+            break
+
+def principled(mat):
+    for n in mat.node_tree.nodes:
+        if n.type == "BSDF_PRINCIPLED":
+            return n
+    return None
+
+used_mats = [s.material for s in mesh.material_slots if s.material]
+for mat in used_mats:
+    if not mat.use_nodes:
+        continue
+    bsdf = principled(mat)
+    if bsdf is None or base_img is None:
+        continue
+    nt = mat.node_tree
+    base_in = bsdf.inputs.get("Base Color")
+    alpha_in = bsdf.inputs.get("Alpha")
+    tex = None
+    if base_in is not None and base_in.is_linked:
+        src = base_in.links[0].from_node
+        if src.type == "TEX_IMAGE":
+            tex = src
+    if tex is None:
+        tex = nt.nodes.new("ShaderNodeTexImage")
+        tex.image = base_img
+        tex.location = (bsdf.location.x - 400, bsdf.location.y)
+        nt.links.new(tex.outputs["Color"], base_in)
+        print("attached texture to material:", mat.name)
+        # Only the fur cards need cut-out alpha. Leaving the body opaque keeps
+        # it cheap and avoids punching holes if any body UV grazes the atlas
+        # background.
+        if alpha_in is not None:
+            nt.links.new(tex.outputs["Alpha"], alpha_in)
+        try:
+            mat.blend_method = "CLIP"   # exporter maps CLIP -> glTF alphaMode MASK
+        except Exception as e:
+            print("blend_method not settable:", e)
+
 # --- 3. semantic bone names --------------------------------------------------
 # Derived from world-space bone positions: the dog faces -Y, +Z is up.
 # Rigify's "DEF-spine/.001/.002/.003" chain runs REARWARD from the hips, so it

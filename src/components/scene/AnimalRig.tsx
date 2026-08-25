@@ -17,6 +17,46 @@ interface Props {
 }
 
 /**
+ * Bounding radius of the animal, in the root's own space.
+ *
+ * `Box3.setFromObject` is WRONG for skinned meshes: it multiplies the geometry
+ * AABB by the mesh node's `matrixWorld`. glTF deliberately ignores that node
+ * transform for skinned meshes — the joint matrices (geometry's inverse-bind
+ * times the joint's global transform) place the vertices instead. On a rig
+ * exported under a scaled parent, those two disagree by exactly that scale, and
+ * the camera then frames something 100x the wrong size.
+ *
+ * Measuring the skeleton avoids the whole problem: bone world positions are
+ * always correct, and the padding accounts for bones sitting inside the
+ * silhouette rather than on it.
+ */
+function measureRadius(root: THREE.Object3D): number {
+  const bones: THREE.Bone[] = [];
+  root.traverse((o) => {
+    if ((o as THREE.Bone).isBone) bones.push(o as THREE.Bone);
+  });
+
+  const box = new THREE.Box3();
+
+  if (bones.length > 0) {
+    // Work in root-local space so a scaled ancestor is not counted twice.
+    root.updateWorldMatrix(false, true);
+    const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+    const p = new THREE.Vector3();
+    for (const bone of bones) {
+      p.setFromMatrixPosition(bone.matrixWorld).applyMatrix4(inv);
+      box.expandByPoint(p);
+    }
+    const size = box.getSize(new THREE.Vector3());
+    box.expandByVector(size.multiplyScalar(0.12));
+  } else {
+    box.setFromObject(root);
+  }
+
+  return box.getBoundingSphere(new THREE.Sphere()).radius;
+}
+
+/**
  * Loads the species model and drives its skeleton.
  *
  * Two animation sources are supported so that hand-animated and rig-driven
@@ -59,9 +99,7 @@ export function AnimalRig({ animal, behavior, onReady }: Props) {
     const mixer = new PoseMixer(root, animal.idle);
     mixerRef.current = mixer;
 
-    const box = new THREE.Box3().setFromObject(root);
-    const sphere = box.getBoundingSphere(new THREE.Sphere());
-    onReady?.({ mixer, root, radius: sphere.radius * spec.scale });
+    onReady?.({ mixer, root, radius: measureRadius(root) * spec.scale });
 
     return () => {
       mixerRef.current = null;

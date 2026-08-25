@@ -40,6 +40,13 @@ That script fixes four things on the way out, none of which modify the .blend:
    carrying a `0.01` scale; removing them silently re-scales the rig 100× and the
    GLB exports spanning ~113 units instead of ~1.1. The script strips only
    cameras and lights.
+5. **The fur-card material has no texture.** `M_GermanShepherd_Transparent`
+   (140 triangles — the neck ruff) ships with a flat grey `(0.8, 0.8, 0.8)` base
+   colour and no image node at all, so those faces render as grey slabs. The
+   script points it at the same atlas as the body and wires the image alpha into
+   the BSDF so the card silhouettes cut out. **This is a material problem, not a
+   UV problem** — the UVs were always correct, there was simply nothing to
+   sample. It exports as `alphaMode: BLEND`.
 
 ## How the animation works
 
@@ -58,6 +65,17 @@ time as you author more clips.
 > The latter copies a `SkinnedMesh` still bound to the *original* skeleton, so
 > the cloned bones we rotate deform nothing and the model sits frozen in its bind
 > pose. This was the cause of "the card changes but the dog doesn't move".
+
+> **Never size a skinned model with `Box3.setFromObject`.**
+> It multiplies the geometry AABB by the mesh node's `matrixWorld`, but glTF
+> deliberately *ignores* that node transform for skinned meshes — the joint
+> matrices place the vertices instead. On this rig (skeleton under a `0.01`
+> parent, inverse-bind matrices scaling back up) the two disagree by exactly
+> 100×, so the measured radius came out 0.019 instead of 2.26. The camera then
+> requested a 0.05-unit distance, `CameraControls` clamped it to `minDistance`
+> 1.2, and the viewport filled with one paw. `measureRadius()` in `AnimalRig`
+> measures **bone world positions** instead, which are always correct, with 12%
+> padding since bones sit inside the silhouette.
 
 ### Local bone axes
 
