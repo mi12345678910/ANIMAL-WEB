@@ -24,7 +24,7 @@ A low-poly rigged German Shepherd — 2,272 triangles, 55 bones, with a baked
 blender -b "../New 3D Dog Model.blend" --python tools/export_shepherd_rig.py
 ```
 
-That script fixes four things on the way out, none of which modify the .blend:
+That script fixes five things on the way out, none of which modify the .blend:
 
 1. **The action is on the wrong armature.** The file has two identical 55-bone
    armatures. The mesh is skinned to `Rig_1 type.001`, but the breathing action
@@ -73,9 +73,15 @@ time as you author more clips.
 > parent, inverse-bind matrices scaling back up) the two disagree by exactly
 > 100×, so the measured radius came out 0.019 instead of 2.26. The camera then
 > requested a 0.05-unit distance, `CameraControls` clamped it to `minDistance`
-> 1.2, and the viewport filled with one paw. `measureRadius()` in `AnimalRig`
+> 1.2, and the viewport filled with one paw. `measureBounds()` in `AnimalRig`
 > measures **bone world positions** instead, which are always correct, with 12%
 > padding since bones sit inside the silhouette.
+>
+> It returns the **centre** as well as the radius, and the camera looks at that
+> centre. Deriving a look-at height from the radius (the old `radius * 0.72`)
+> only holds for a compact subject — on a long quadruped the bounding sphere is
+> driven by body length, so that estimate landed at 82% of the dog's height and
+> the animal hung below frame centre.
 
 ### Local bone axes
 

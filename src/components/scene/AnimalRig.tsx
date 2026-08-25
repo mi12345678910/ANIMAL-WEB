@@ -10,14 +10,22 @@ import { PoseMixer } from "@/lib/poseEngine";
 
 useGLTF.setDecoderPath("/draco/");
 
+/** Reused for the faceYaw spin when placing the look-at centre. */
+const UP = new THREE.Vector3(0, 1, 0);
+
 interface Props {
   animal: Animal;
   behavior: Behavior | null;
-  onReady?: (info: { mixer: PoseMixer; root: THREE.Object3D; radius: number }) => void;
+  onReady?: (info: {
+    mixer: PoseMixer;
+    root: THREE.Object3D;
+    radius: number;
+    center: THREE.Vector3;
+  }) => void;
 }
 
 /**
- * Bounding radius of the animal, in the root's own space.
+ * Bounding radius AND centre of the animal, in the root's own space.
  *
  * `Box3.setFromObject` is WRONG for skinned meshes: it multiplies the geometry
  * AABB by the mesh node's `matrixWorld`. glTF deliberately ignores that node
@@ -29,8 +37,13 @@ interface Props {
  * Measuring the skeleton avoids the whole problem: bone world positions are
  * always correct, and the padding accounts for bones sitting inside the
  * silhouette rather than on it.
+ *
+ * The centre matters as much as the radius. Deriving a look-at height from the
+ * radius alone (the old `radius * 0.72`) only works for a compact subject: on a
+ * long quadruped the bounding sphere is driven by body LENGTH, so that estimate
+ * lands near the shoulders and the animal sits low in frame.
  */
-function measureRadius(root: THREE.Object3D): number {
+function measureBounds(root: THREE.Object3D): { radius: number; center: THREE.Vector3 } {
   const bones: THREE.Bone[] = [];
   root.traverse((o) => {
     if ((o as THREE.Bone).isBone) bones.push(o as THREE.Bone);
@@ -53,7 +66,8 @@ function measureRadius(root: THREE.Object3D): number {
     box.setFromObject(root);
   }
 
-  return box.getBoundingSphere(new THREE.Sphere()).radius;
+  const sphere = box.getBoundingSphere(new THREE.Sphere());
+  return { radius: sphere.radius, center: box.getCenter(new THREE.Vector3()) };
 }
 
 /**
@@ -99,12 +113,18 @@ export function AnimalRig({ animal, behavior, onReady }: Props) {
     const mixer = new PoseMixer(root, animal.idle);
     mixerRef.current = mixer;
 
-    onReady?.({ mixer, root, radius: measureRadius(root) * spec.scale });
+    // Convert the root-local centre into world space by replaying the wrapper
+    // group's transform below: scale, then the faceYaw spin, then yOffset.
+    const { radius, center } = measureBounds(root);
+    center.multiplyScalar(spec.scale).applyAxisAngle(UP, spec.faceYaw);
+    center.y += spec.yOffset;
+
+    onReady?.({ mixer, root, radius: radius * spec.scale, center });
 
     return () => {
       mixerRef.current = null;
     };
-  }, [root, animal.idle, spec.scale, onReady]);
+  }, [root, animal.idle, spec.scale, spec.faceYaw, spec.yOffset, onReady]);
 
   useEffect(() => {
     const mixer = mixerRef.current;

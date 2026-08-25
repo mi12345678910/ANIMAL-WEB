@@ -22,6 +22,8 @@ interface RigInfo {
   mixer: PoseMixer;
   root: THREE.Object3D;
   radius: number;
+  /** World-space centre of the animal — the default look-at point. */
+  center: THREE.Vector3;
 }
 
 /**
@@ -30,8 +32,9 @@ interface RigInfo {
  */
 function resolveLookAt(focus: FocusSpec, rig: RigInfo | null): [number, number, number, number, number, number] {
   const radius = rig?.radius ?? 1.4;
-  // Body centre, roughly chest height for a seated quadruped.
-  const target = new THREE.Vector3(0, radius * 0.72, 0);
+  // Measured centre of the animal, so it lands mid-frame regardless of whether
+  // the species is tall and compact or long and low.
+  const target = rig ? rig.center.clone() : new THREE.Vector3(0, radius * 0.72, 0);
 
   const bone = rig?.mixer.getBone(focus.bone);
   if (bone) {
