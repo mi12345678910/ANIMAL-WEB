@@ -15,17 +15,18 @@ interface ChatRequest {
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_HISTORY_TURNS = 10;
 
-const SYSTEM_PROMPT = `You are a careful, friendly guide to animal body language, embedded in an educational 3D web app.
+const SYSTEM_PROMPT = `You are a friendly guide to animal body language in an educational 3D web app. Your readers are ordinary pet owners, not professionals.
 
-Answer using the reference material provided in <context>. If the context does not cover the question, say so plainly and give general, well-established guidance instead of inventing specifics.
+Answer using the reference material in <context>. If it does not cover the question, say so plainly and give general, well-established guidance rather than inventing specifics.
 
-House rules:
-- Keep answers to two or three short paragraphs, or a tight bulleted list.
-- Describe observable signals (ear position, tail carriage, body weight, facial tension) rather than asserting what the animal feels.
-- Read signals in combination. Warn against reading any single cue — a wagging tail especially — in isolation.
-- Never advise punishing warning signals such as growling; explain that doing so removes the warning, not the fear.
-- For anything involving a bite risk, sudden behaviour change, or possible pain, recommend a veterinarian or a qualified force-free behaviourist.
-- You are not a substitute for veterinary care. Say so when it matters, without repeating it every time.`;
+Keep every answer SHORT and easy to read. Use this shape:
+1. One plain sentence that answers the question directly.
+2. "Look for:" then at most three short bullets naming what to watch (ears, tail, body, face).
+3. "What to do:" then one sentence.
+
+Hard limits: under 90 words total. Short sentences. No jargon unless you explain it in the same breath. Do not add headings, preambles, caveats, or a summary at the end.
+
+Always: describe what is observable rather than asserting what the animal feels; treat signals in combination, never a single cue alone; never advise punishing a warning like a growl; and if there is bite risk, pain, or a sudden change in behaviour, say to see a vet or a qualified force-free behaviourist.`;
 
 function buildContext(chunks: RetrievedChunk[]): string {
   if (chunks.length === 0) return "No reference material matched this question.";
@@ -34,30 +35,50 @@ function buildContext(chunks: RetrievedChunk[]): string {
     .join("\n\n---\n\n");
 }
 
+/** First sentence of a passage, for one-line summaries. */
+function firstSentence(text: string): string {
+  const match = text.match(/^.*?[.!?](?=\s|$)/);
+  return (match ? match[0] : text).trim();
+}
+
+/** Drop a trailing full stop so a cue reads cleanly as a bullet. */
+function asCue(text: string): string {
+  return firstSentence(text).replace(/\.$/, "");
+}
+
 /**
- * Fallback answer used when no ANTHROPIC_API_KEY is configured. It is extractive
- * rather than generative: it surfaces the retrieved material directly so the
- * chat stays useful without any external service.
+ * Fallback answer used when no ANTHROPIC_API_KEY is configured.
+ *
+ * It is extractive rather than generative, but it must not simply echo the
+ * whole reference card — that reads as a wall of text. Instead it composes the
+ * same shape the model is asked for: one-line answer, a few cues, one action.
  */
 function extractiveAnswer(chunks: RetrievedChunk[], animalName: string): string {
   if (chunks.length === 0) {
-    return `I couldn't find anything on that in the ${animalName.toLowerCase()} reference library yet. Try asking about tail position, ear set, body posture, or a specific situation such as greeting or handling.`;
+    return `I don't have anything on that yet. Try asking about the tail, the ears, or how the body is held.`;
   }
+
   const top = chunks[0];
-  const rest = chunks.slice(1, 3).map((c) => c.title);
-  const lines = [
-    `Here's what the reference library has on that, from **${top.title}**:`,
-    "",
-    top.text,
-  ];
-  if (rest.length) {
-    lines.push("", `Related entries: ${rest.join(", ")}.`);
+  const behavior = top.source
+    ? getBehavior(getAnimal(top.source.animalId), top.source.behaviorId)
+    : null;
+
+  // A chunk from a PDF/vector store has no structured card — excerpt it instead.
+  if (!behavior) {
+    return `${firstSentence(top.text)}\n\nFrom **${top.title}**.`;
   }
-  lines.push(
+
+  const cues = behavior.card.cues.slice(0, 3).map((c) => `- ${c.part}: ${asCue(c.text)}`);
+  // Neutral lead-in: the question may be a description of something seen, or a
+  // general "what does X mean" — "that looks like…" would only fit the first.
+  return [
+    `**${behavior.card.title}** — ${firstSentence(behavior.card.meaning)}`,
     "",
-    "_Set an ANTHROPIC_API_KEY to get conversational answers instead of raw reference entries._",
-  );
-  return lines.join("\n");
+    "Look for:",
+    ...cues,
+    "",
+    `What to do: ${firstSentence(behavior.card.respond[0])}`,
+  ].join("\n");
 }
 
 export async function POST(request: Request) {

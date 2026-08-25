@@ -18,6 +18,15 @@
   --accent-soft: rgba(13, 148, 136, 0.12);
   --ring: rgba(13, 148, 136, 0.4);
 
+  /*
+    The 3D stage is deliberately lighter than the surrounding chrome in BOTH
+    themes: the models are dark-furred, and a dark subject needs a light
+    backdrop to read at all. Think product-photography lightbox.
+  */
+  --stage-core: #ffffff;
+  --stage-mid: #e7edf6;
+  --stage-edge: #c3cede;
+
   --tone-positive: #059669;
   --tone-neutral: #2563eb;
   --tone-caution: #d97706;
@@ -25,18 +34,24 @@
 }
 
 [data-theme="dark"] {
-  --bg-a: #070b16;
-  --bg-b: #0d1426;
-  --bg-c: #141033;
-  --fg: #e9eef8;
-  --muted: #93a1bd;
-  --glass: rgba(20, 28, 48, 0.55);
-  --glass-strong: rgba(24, 33, 56, 0.78);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  /* Slate rather than near-black — the old #070b16 swallowed the model. */
+  --bg-a: #141b2c;
+  --bg-b: #1c2438;
+  --bg-c: #262148;
+  --fg: #eaf0fa;
+  --muted: #a3b0cb;
+  --glass: rgba(40, 51, 76, 0.58);
+  --glass-strong: rgba(45, 57, 85, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.13);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   --accent: #5eead4;
-  --accent-soft: rgba(94, 234, 212, 0.14);
+  --accent-soft: rgba(94, 234, 212, 0.16);
   --ring: rgba(94, 234, 212, 0.45);
+
+  /* Still a lit pool, just cooled down so it sits inside the dark UI. */
+  --stage-core: #8f9dbb;
+  --stage-mid: #5d6b8c;
+  --stage-edge: #333d5c;
 
   --tone-positive: #34d399;
   --tone-neutral: #60a5fa;
@@ -109,10 +124,35 @@ body {
 
 .viewport-shell {
   position: relative;
+  isolation: isolate;
+}
+
+/*
+  Studio backdrop behind the canvas (the canvas itself is transparent).
+  A pool of light centred a little above the middle, where the animal sits.
+  This is what makes a black-furred model readable — the surrounding UI theme
+  barely matters once the subject has a lit backdrop behind it.
+*/
+.viewport-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(58% 52% at 50% 42%, var(--stage-core) 0%, var(--stage-mid) 45%, var(--stage-edge) 100%);
+}
+
+/*
+  Grounding is handled by drei's <ContactShadows> inside the scene, not here —
+  a CSS blob would sit at a fixed spot and drift as soon as the camera orbits.
+*/
+.viewport-shell canvas {
+  position: relative;
+  z-index: 1;
 }
 
 .viewport-hint {
   position: absolute;
+  z-index: 2;
   bottom: 1rem;
   left: 50%;
   transform: translateX(-50%);

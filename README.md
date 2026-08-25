@@ -129,6 +129,16 @@ RAG_BACKEND=vector
   the relevant body part, then hands control back rather than fighting the user.
   Framing *biases* toward a bone (`focus.bias`) instead of centring on it, so the
   body part is emphasised without pushing the animal out of frame.
+
+  The canvas is transparent and sits on a **lit stage** (`.viewport-stage`) that
+  stays light in both themes. The dog's coat is near-black, and against the page
+  background it scored 1.04:1 contrast — effectively invisible. On the stage it's
+  3.6:1 in dark mode and 16.2:1 in light. Lightening the theme alone does *not*
+  fix this (the lightened dark page still only reaches 1.11:1); the subject needs
+  its own backdrop. Scene lighting is tuned to match: bright key, two coloured
+  rim lights for edge separation, and a floor bounce so the underside doesn't
+  crush to black. Tone mapping is `Neutral` rather than `ACESFilmic`, which was
+  crushing shadow detail on the dark coat.
 - **Side panel** — behaviour buttons and the synced explanation card; becomes a
   bottom sheet below `lg`.
 - **Chat** — floating, collapsible, with quick-prompt chips and typing indicator.

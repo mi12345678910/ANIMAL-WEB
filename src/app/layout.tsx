@@ -16,12 +16,16 @@ export const viewport: Viewport = {
 
 /**
  * Applied before paint so the saved theme never flashes the wrong palette.
+ *
+ * Defaults to light rather than following the system preference: the models are
+ * dark-furred and read far better on a light background, so a first-time visitor
+ * on a dark-mode OS would otherwise land on the worst-case pairing. The toggle
+ * still switches to dark and that choice is remembered.
  */
 const themeInit = `(function(){try{
   var s = localStorage.getItem('bll-theme');
-  var t = s || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-  document.documentElement.setAttribute('data-theme', t);
-}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();`;
+  document.documentElement.setAttribute('data-theme', s || 'light');
+}catch(e){document.documentElement.setAttribute('data-theme','light');}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

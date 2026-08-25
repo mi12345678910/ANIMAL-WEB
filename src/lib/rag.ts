@@ -21,6 +21,12 @@ export interface RetrievedChunk {
   text: string;
   /** Higher is more relevant. Scale is retriever-specific. */
   score: number;
+  /**
+   * Set only when the chunk came from the built-in behaviour library, so the
+   * API route can compose a short answer from the card's structured fields
+   * instead of echoing the whole thing. Absent for PDF/vector chunks.
+   */
+  source?: { animalId: string; behaviorId: string };
 }
 
 export interface RetrieveOptions {
@@ -172,6 +178,7 @@ export class LocalRetriever implements Retriever {
         title: doc.title,
         text: doc.text,
         score,
+        source: { animalId: doc.animalId, behaviorId: doc.behaviorId },
       }));
   }
 }
