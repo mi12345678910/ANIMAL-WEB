@@ -141,8 +141,7 @@ export function TopBar({ animal }: { animal: Animal }) {
     <header className="flex items-center gap-3 px-4 py-3">
       <div className="flex items-center gap-2.5 pr-1">
         <div
-          className="grid h-9 w-9 place-items-center rounded-xl text-lg"
-          style={{ background: "var(--accent-soft)" }}
+          className="accent-soft-bg grid h-9 w-9 place-items-center rounded-xl text-lg"
           aria-hidden
         >
           🐾

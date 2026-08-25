@@ -42,9 +42,8 @@ function Bubble({ message }: { message: ChatMessage }) {
     >
       <div
         className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[0.82rem] leading-relaxed ${
-          isUser ? "rounded-br-md text-white" : "surface-raised rounded-bl-md text-[var(--fg)]"
+          isUser ? "accent-bg rounded-br-md" : "surface-raised rounded-bl-md text-[var(--fg)]"
         }`}
-        style={isUser ? { background: "var(--accent)" } : undefined}
       >
         {message.pending ? (
           <TypingIndicator />
@@ -56,8 +55,7 @@ function Bubble({ message }: { message: ChatMessage }) {
                 {message.sources.map((s, i) => (
                   <span
                     key={i}
-                    className="rounded-md px-1.5 py-0.5 text-[0.6rem]"
-                    style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+                    className="accent-chip rounded-md px-1.5 py-0.5 text-[0.6rem]"
                   >
                     {s.title}
                     {s.page ? ` · p.${s.page}` : ""}
@@ -172,8 +170,7 @@ export function ChatPanel({ animal }: { animal: Animal }) {
         >
           <header className="flex items-center gap-2.5 border-b border-[var(--surface-border)] px-4 py-3">
             <span
-              className="grid h-7 w-7 place-items-center rounded-lg text-sm"
-              style={{ background: "var(--accent-soft)" }}
+              className="accent-soft-bg grid h-7 w-7 place-items-center rounded-lg text-sm"
             >
               📚
             </span>
@@ -252,8 +249,7 @@ export function ChatPanel({ animal }: { animal: Animal }) {
             <button
               type="submit"
               disabled={!input.trim() || chatBusy}
-              className="focusable grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white transition disabled:opacity-35"
-              style={{ background: "var(--accent)" }}
+              className="accent-bg focusable grid h-9 w-9 shrink-0 place-items-center rounded-xl transition disabled:opacity-35"
               aria-label="Send message"
             >
               ↑

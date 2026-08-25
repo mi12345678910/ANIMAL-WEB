@@ -39,7 +39,7 @@ export const dog: Animal = {
   name: "Dog",
   icon: "\u{1F415}",
   status: "ready",
-  accent: "#5eead4",
+  accent: { light: "#0b7a6b", dark: "#5eead4" },
   blurb: "German Shepherd · Canis familiaris",
   model: {
     url: "/models/dog.glb",

@@ -4,19 +4,26 @@
   Theme tokens. Light is the base definition; dark is layered on top for both
   the explicit [data-theme] switch and the system preference.
 */
+/*
+  Palette: warm "field guide" paper — sand and ink rather than the generic
+  cool grey-blue. The animals are warm-furred, so the chrome leans warm and the
+  accent stays cool for contrast. The 3D stage below deliberately stays neutral
+  grey: that one is load-bearing for model legibility, not decoration.
+*/
 :root {
-  --bg-a: #eef2f7;
-  --bg-b: #dbe4f0;
-  --bg-c: #e8e2f4;
-  --fg: #0f172a;
-  --muted: #52607a;
-  --glass: rgba(255, 255, 255, 0.62);
-  --glass-strong: rgba(255, 255, 255, 0.8);
-  --glass-border: rgba(15, 23, 42, 0.09);
-  --glass-shadow: 0 8px 32px rgba(15, 23, 42, 0.1);
-  --accent: #0d9488;
-  --accent-soft: rgba(13, 148, 136, 0.12);
-  --ring: rgba(13, 148, 136, 0.4);
+  --bg-a: #f7f3ec; /* warm paper */
+  --bg-b: #ece2d2; /* sand */
+  --bg-c: #e6dcf2; /* cool lilac, for the drifting ambient blob */
+  --bg-d: #f8ded0; /* soft apricot, second blob */
+  --fg: #211c16; /* warm ink */
+  --muted: #6d6154;
+  --glass: rgba(255, 252, 246, 0.66);
+  --glass-strong: rgba(255, 252, 246, 0.88);
+  --glass-border: rgba(33, 28, 22, 0.1);
+  --glass-shadow: 0 10px 34px rgba(87, 66, 44, 0.13);
+  --accent: #0b7a6b;
+  --accent-soft: rgba(11, 122, 107, 0.12);
+  --ring: rgba(11, 122, 107, 0.42);
 
   /*
     The 3D stage is deliberately lighter than the surrounding chrome in BOTH
@@ -28,28 +35,29 @@
   --stage-edge: #c6c7c9;
 
   /* Opaque surfaces for text-heavy panels (chat). No transparency at all. */
-  --surface: #ffffff;
-  --surface-raised: #eef1f6;
-  --surface-border: rgba(15, 23, 42, 0.14);
-  --surface-shadow: 0 18px 48px rgba(15, 23, 42, 0.22);
+  --surface: #fffdf9;
+  --surface-raised: #f2ebe0;
+  --surface-border: rgba(33, 28, 22, 0.14);
+  --surface-shadow: 0 18px 48px rgba(76, 56, 36, 0.2);
 
-  --tone-positive: #059669;
-  --tone-neutral: #2563eb;
-  --tone-caution: #d97706;
-  --tone-alert: #dc2626;
+  --tone-positive: #0f7a52;
+  --tone-neutral: #2b64c8;
+  --tone-caution: #b4610a;
+  --tone-alert: #bb2b28;
 }
 
+/* Warm espresso rather than the cold slate — same warmth story, inverted. */
 [data-theme="dark"] {
-  /* Slate rather than near-black — the old #070b16 swallowed the model. */
-  --bg-a: #141b2c;
-  --bg-b: #1c2438;
-  --bg-c: #262148;
-  --fg: #eaf0fa;
-  --muted: #a3b0cb;
-  --glass: rgba(40, 51, 76, 0.58);
-  --glass-strong: rgba(45, 57, 85, 0.82);
-  --glass-border: rgba(255, 255, 255, 0.13);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --bg-a: #191410;
+  --bg-b: #241c16;
+  --bg-c: #2c2140; /* plum blob */
+  --bg-d: #3a2318; /* ember blob */
+  --fg: #f4efe6;
+  --muted: #ab9d8c;
+  --glass: rgba(58, 47, 38, 0.6);
+  --glass-strong: rgba(64, 52, 42, 0.86);
+  --glass-border: rgba(255, 240, 225, 0.14);
+  --glass-shadow: 0 10px 34px rgba(0, 0, 0, 0.48);
   --accent: #5eead4;
   --accent-soft: rgba(94, 234, 212, 0.16);
   --ring: rgba(94, 234, 212, 0.45);
@@ -59,15 +67,15 @@
   --stage-mid: #6d6f73;
   --stage-edge: #3d3f43;
 
-  --surface: #1b2334;
-  --surface-raised: #263049;
-  --surface-border: rgba(255, 255, 255, 0.16);
-  --surface-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  --surface: #241d17;
+  --surface-raised: #322820;
+  --surface-border: rgba(255, 240, 225, 0.16);
+  --surface-shadow: 0 18px 48px rgba(0, 0, 0, 0.6);
 
-  --tone-positive: #34d399;
-  --tone-neutral: #60a5fa;
+  --tone-positive: #4ade9f;
+  --tone-neutral: #7cb8ff;
   --tone-caution: #fbbf24;
-  --tone-alert: #f87171;
+  --tone-alert: #ff8878;
 }
 
 * {
@@ -88,33 +96,132 @@ body {
   overflow: hidden;
 }
 
-/* Ambient backdrop: slow-drifting colour fields behind the glass panels. */
+/*
+  Ambient backdrop. Two colour fields drifting in opposite directions over a
+  warm base, so the page has depth and slow movement instead of a flat wash.
+  Both are heavily blurred and low-contrast — this should register as atmosphere,
+  never as a shape competing with the content.
+*/
 .app-backdrop {
   position: fixed;
   inset: 0;
   z-index: -1;
+  overflow: hidden;
   background:
-    radial-gradient(60% 55% at 18% 12%, var(--bg-c) 0%, transparent 60%),
-    radial-gradient(55% 50% at 85% 20%, var(--accent-soft) 0%, transparent 55%),
-    radial-gradient(70% 60% at 70% 90%, var(--bg-b) 0%, transparent 60%),
-    linear-gradient(160deg, var(--bg-a) 0%, var(--bg-b) 100%);
+    radial-gradient(80% 60% at 78% 96%, var(--bg-b) 0%, transparent 62%),
+    linear-gradient(158deg, var(--bg-a) 0%, var(--bg-b) 108%);
 }
 
+.app-backdrop::before,
 .app-backdrop::after {
   content: "";
   position: absolute;
-  inset: -20%;
-  background: radial-gradient(40% 40% at 50% 50%, var(--accent-soft) 0%, transparent 70%);
-  animation: drift 24s ease-in-out infinite alternate;
+  border-radius: 50%;
+  filter: blur(90px);
+  will-change: transform;
 }
 
-@keyframes drift {
+/* Cool field, upper left. */
+.app-backdrop::before {
+  width: 62vmax;
+  height: 62vmax;
+  top: -22vmax;
+  left: -16vmax;
+  background: radial-gradient(circle, var(--bg-c) 0%, transparent 68%);
+  opacity: 0.85;
+  animation: drift-a 34s ease-in-out infinite alternate;
+}
+
+/* Warm field, right — tinted by the species accent so switching animal
+   re-tints the whole page, not just the buttons. */
+.app-backdrop::after {
+  width: 54vmax;
+  height: 54vmax;
+  top: 6vmax;
+  right: -18vmax;
+  background:
+    radial-gradient(circle, var(--bg-d) 0%, transparent 66%),
+    radial-gradient(circle at 60% 40%, var(--accent-soft) 0%, transparent 60%);
+  opacity: 0.9;
+  animation: drift-b 28s ease-in-out infinite alternate;
+}
+
+@keyframes drift-a {
   from {
-    transform: translate3d(-8%, -4%, 0) scale(1);
+    transform: translate3d(-4%, -3%, 0) scale(1);
   }
   to {
-    transform: translate3d(10%, 8%, 0) scale(1.15);
+    transform: translate3d(9%, 8%, 0) scale(1.18);
   }
+}
+
+@keyframes drift-b {
+  from {
+    transform: translate3d(5%, 6%, 0) scale(1.12);
+  }
+  to {
+    transform: translate3d(-7%, -5%, 0) scale(1);
+  }
+}
+
+/*
+  Species accent, resolved per theme. The value cannot live on :root because it
+  is set inline on <main>; these rules read it back on the element that carries
+  it. Falls back to the theme accent when no species is scoped.
+*/
+.accent-scope {
+  --accent: var(--accent-l);
+  --accent-soft: color-mix(in srgb, var(--accent-l) 13%, transparent);
+  --ring: color-mix(in srgb, var(--accent-l) 45%, transparent);
+}
+
+[data-theme="dark"] .accent-scope {
+  --accent: var(--accent-d);
+  --accent-soft: color-mix(in srgb, var(--accent-d) 17%, transparent);
+  --ring: color-mix(in srgb, var(--accent-d) 48%, transparent);
+}
+
+/*
+  Accent helpers as real classes rather than inline `style={{background:
+  'var(--accent)'}}`. Inline var() substitution was observed not to re-resolve
+  when the theme flips, leaving buttons stuck on the previous theme's accent;
+  a stylesheet rule re-resolves reliably and keeps the colour out of the JSX.
+*/
+.accent-bg {
+  background: var(--accent);
+  color: #fff;
+}
+
+[data-theme="dark"] .accent-bg {
+  /* The bright dark-mode accent needs dark text, not white. */
+  color: #10201d;
+}
+
+.accent-text {
+  color: var(--accent);
+}
+
+.accent-soft-bg {
+  background: var(--accent-soft);
+}
+
+.accent-chip {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/*
+  Tone pills sit ON the semantic colour, so their text has to flip with the
+  theme: the light-theme tones are deep and take white, the dark-theme tones are
+  bright and need dark ink. Hardcoding white failed every dark-mode pill at
+  around 1.7-2.3:1.
+*/
+.tone-pill {
+  color: #fff;
+}
+
+[data-theme="dark"] .tone-pill {
+  color: #1a1410;
 }
 
 .glass {

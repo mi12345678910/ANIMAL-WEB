@@ -119,14 +119,28 @@ export interface ModelSpec {
   yOffset: number;
 }
 
+/**
+ * Per-species accent, one value per theme.
+ *
+ * A single shared value cannot work: a hue bright enough to read on a dark
+ * background is far too pale to carry white text on a light one. The old
+ * single `accent` put white-on-#5eead4 at 1.48:1 in light mode.
+ */
+export interface Accent {
+  /** Deep enough to carry white text on a pale background (aim >= 4.5:1). */
+  light: string;
+  /** Bright enough to glow against a dark background. */
+  dark: string;
+}
+
 export interface Animal {
   id: string;
   name: string;
   icon: string;
   status: "ready" | "coming-soon";
   blurb: string;
-  /** Accent colour (OKLCH-friendly hex) used for this species' UI theming. */
-  accent: string;
+  /** Accent colour used for this species' UI theming. */
+  accent: Accent;
   model?: ModelSpec;
   rig?: RigMap;
   /** Subtle motion that always runs underneath any behaviour (breathing etc). */

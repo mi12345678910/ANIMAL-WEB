@@ -33,10 +33,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>
-      <body>
-        <div className="app-backdrop" />
-        {children}
-      </body>
+      {/*
+        The ambient backdrop lives inside the page, not here: it is tinted by
+        the selected species' accent, and that variable is scoped to <main>.
+      */}
+      <body>{children}</body>
     </html>
   );
 }

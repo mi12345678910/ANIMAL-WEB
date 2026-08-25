@@ -29,10 +29,20 @@ export default function Page() {
 
   return (
     <main
-      className="flex h-dvh flex-col overflow-hidden"
-      // Species accent flows into every glass surface below.
-      style={{ ["--accent" as string]: animal.accent }}
+      className="accent-scope flex h-dvh flex-col overflow-hidden"
+      /*
+       * Both accent variants are published here; globals.css picks the right
+       * one per theme. A single shared accent cannot work — a hue bright enough
+       * for a dark background is unreadable under white text on a light one.
+       */
+      style={
+        {
+          "--accent-l": animal.accent.light,
+          "--accent-d": animal.accent.dark,
+        } as React.CSSProperties
+      }
     >
+      <div className="app-backdrop" aria-hidden />
       <TopBar animal={animal} />
 
       <div className="flex min-h-0 flex-1 gap-3 px-3 pb-3 lg:gap-4 lg:px-4 lg:pb-4">

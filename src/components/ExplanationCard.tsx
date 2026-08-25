@@ -49,8 +49,8 @@ export function ExplanationCard({ behavior }: { behavior: Behavior | null }) {
                   {behavior.icon}
                 </span>
                 <span
-                  className="rounded-full px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wider"
-                  style={{ background: TONE_VAR[behavior.tone], color: "#fff" }}
+                  className="tone-pill rounded-full px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wider"
+                  style={{ background: TONE_VAR[behavior.tone] }}
                 >
                   {TONE_LABEL[behavior.tone]}
                 </span>
@@ -69,8 +69,7 @@ export function ExplanationCard({ behavior }: { behavior: Behavior | null }) {
                 {behavior.card.cues.map((cue) => (
                   <li key={cue.part} className="flex gap-2.5 text-[0.8rem] leading-relaxed">
                     <span
-                      className="mt-0.5 h-fit shrink-0 rounded-md px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide"
-                      style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+                      className="accent-chip mt-0.5 h-fit shrink-0 rounded-md px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide"
                     >
                       {cue.part}
                     </span>
@@ -94,7 +93,7 @@ export function ExplanationCard({ behavior }: { behavior: Behavior | null }) {
               <ul className="space-y-1.5">
                 {behavior.card.respond.map((r, i) => (
                   <li key={i} className="flex gap-2 text-[0.8rem] leading-relaxed text-[var(--fg)]/85">
-                    <span className="mt-[0.35rem] h-1 w-1 shrink-0 rounded-full" style={{ background: "var(--accent)" }} />
+                    <span className="accent-bg mt-[0.35rem] h-1 w-1 shrink-0 rounded-full" />
                     <span>{r}</span>
                   </li>
                 ))}

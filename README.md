@@ -144,6 +144,32 @@ ANTHROPIC_API_KEY=sk-ant-...
 RAG_BACKEND=vector
 ```
 
+## Palette
+
+Warm "field guide" paper rather than the default cool grey-blue: sand and ink in
+light, espresso and cream in dark, with a cool teal accent for contrast against
+warm fur. Two low-contrast colour fields drift in opposite directions behind the
+glass to give the page depth.
+
+Accents are **per species and per theme** (`Accent { light, dark }`). One shared
+value cannot work — a hue bright enough for a dark background is unreadable
+under white text on a light one, and the old single `#5eead4` put the send
+button at 1.48:1 in light mode.
+
+Two rules that are easy to get wrong here:
+
+- **Accent colours belong in CSS classes, not inline `style` props.** Inline
+  `var()` substitution was observed not to re-resolve on a theme flip, leaving
+  controls stuck on the previous theme's accent. `.accent-bg` / `.accent-chip` /
+  `.accent-soft-bg` re-resolve reliably.
+- **Text on a tone pill has to flip with the theme.** Light-theme tones are deep
+  and take white; dark-theme tones are bright and need dark ink. Hardcoded white
+  failed every dark-mode pill at ~1.7–2.3:1; `.tone-pill` fixes it.
+
+Everything now clears WCAG AA (body text 15–17:1, muted 5.4–6.9:1, buttons and
+pills 4.5:1+), with the caution tone on paper at AA-large, which is fine for a
+non-text element.
+
 ## Layout and contrast
 
 - **Top bar** — animal selector, panel toggle, chat toggle, light/dark toggle
