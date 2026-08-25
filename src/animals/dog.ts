@@ -1,24 +1,37 @@
 import type { Animal, Oscillator } from "./types";
 
 /**
- * Bone names come from the exported rig (`public/models/dog.glb`). The source
- * armature used generic names (Bone.001 ...); they are renamed to these
- * semantic names during export so the poses below stay readable.
+ * Rig: German Shepherd, exported from "New 3D Dog Model.blend" by
+ * `tools/export_shepherd_rig.py`. The source is a Rigify rig whose DEF- bones
+ * are renamed to the semantic names used below.
  *
- * Local-axis conventions, verified by posing the rig in Blender and rendering:
- *   Head   +x nose up  |  -x nose down  |  +y turn away  |  +z head tilt (roll)
- *   Ear_*  +x pinned back            |  -x perked forward
- *   Spine  +x lean back / sit tall   |  -x lean forward
- *   Tail   +x tuck under             |  -x raise  |  +/-z lateral swing (wag)
+ * Note the Rigify naming is misleading: its "DEF-spine/.001/.002/.003" chain
+ * runs REARWARD from the hips and is actually the tail. The forward body chain
+ * is .004 -> .006 -> .007 -> .008 -> .009 -> .010 -> .011. The export script
+ * resolves this, so the names here reflect the geometry.
+ *
+ * Local-axis conventions, verified by posing the rig in Blender and rendering.
+ * These are INVERTED from the previous seated model on head, ears and tail, so
+ * old pose values must not be carried across:
+ *   Head    +x nose down | -x nose up | +y turn away | +z head tilt (roll)
+ *   Ear_*   +x forward / perked       | -x back / flattened | +/-z splay
+ *   Chest   +x crouch, round down     | -x lift and extend
+ *   Tail_*  +x raise                  | -x tuck under       | +/-z wag
+ *
+ * Unlike the previous model this dog is STANDING, which finally makes a real
+ * play bow reachable.
  */
-const TAIL = ["Tail_01", "Tail_02", "Tail_03", "Tail_04", "Tail_05", "Tail_06", "Tail_07", "Tail_08"];
-const EAR_L = ["Ear_L_01", "Ear_L_02", "Ear_L_03"];
-const EAR_R = ["Ear_R_01", "Ear_R_02", "Ear_R_03"];
+const TAIL = ["Tail_01", "Tail_02", "Tail_03", "Tail_04"];
+const EAR_L = ["Ear_L_01", "Ear_L_02"];
+const EAR_R = ["Ear_R_01", "Ear_R_02"];
 
-/** Breathing and micro-motion that runs underneath every behaviour. */
+/**
+ * Subtle motion under any procedural behaviour. The "relaxed" behaviour does
+ * not use this — it plays the model's own baked breathing clip instead.
+ */
 const IDLE: Oscillator[] = [
-  { bones: ["Spine"], axis: "x", amplitude: 0.014, frequency: 0.26 },
-  { bones: ["Head"], axis: "z", amplitude: 0.01, frequency: 0.19 },
+  { bones: ["Chest"], axis: "x", amplitude: 0.012, frequency: 0.28 },
+  { bones: ["Head"], axis: "z", amplitude: 0.008, frequency: 0.2 },
 ];
 
 export const dog: Animal = {
@@ -27,19 +40,21 @@ export const dog: Animal = {
   icon: "\u{1F415}",
   status: "ready",
   accent: "#5eead4",
-  blurb: "Domestic dog · Canis familiaris",
+  blurb: "German Shepherd · Canis familiaris",
   model: {
     url: "/models/dog.glb",
-    scale: 1,
-    // Blender's +Y forward becomes -Z after the glTF Y-up conversion, so spin
-    // the model a half turn to face the camera's home position on +Z.
-    faceYaw: Math.PI,
+    // Source is ~0.70 units tall; scale up so the scene's absolute values
+    // (shadow camera bounds, contact-shadow radius, light positions) still fit.
+    scale: 2.85,
+    // This rig already faces +Z after the glTF Y-up conversion, which is the
+    // camera's "front". No correction needed (the old model needed a half turn).
+    faceYaw: 0,
     yOffset: 0,
   },
   rig: {
-    spine: "Spine",
+    spine: "Chest",
     head: "Head",
-    muzzle: "Muzzle",
+    muzzle: "Jaw",
     ears: { left: EAR_L, right: EAR_R },
     tail: TAIL,
   },
@@ -56,26 +71,27 @@ export const dog: Animal = {
       label: "Relaxed / Neutral",
       icon: "\u{1F33F}",
       tone: "positive",
+      // The GLB ships with a real 31-frame breathing loop. AnimalRig plays a
+      // baked clip when the model actually contains it, so this behaviour uses
+      // the authored animation and ignores the procedural pose below.
+      clip: "1 type_Idle Breathing",
       pose: {
-        Spine: [0.02, 0, 0],
-        Head: [-0.03, 0, 0],
-        Ear_L_01: [0.06, 0, 0],
-        Ear_R_01: [0.06, 0, 0],
-        Tail_01: [0.1, 0, 0],
-        Tail_02: [0.06, 0, 0],
+        Chest: [0.02, 0, 0],
+        Head: [0.02, 0, 0],
+        Tail_01: [-0.06, 0, 0],
       },
       oscillators: [
-        { bones: TAIL, axis: "z", amplitude: 0.05, frequency: 0.5, phaseStep: 0.3, falloff: 1.05 },
+        { bones: TAIL, axis: "z", amplitude: 0.05, frequency: 0.5, phaseStep: 0.5, falloff: 1.1 },
       ],
-      focus: { bone: "Spine", bias: 0.15, distance: 3.05, yaw: 0.5, pitch: 0.16 },
+      focus: { bone: "Chest", bias: 0.1, distance: 2.95, yaw: 0.55, pitch: 0.14 },
       card: {
         title: "Relaxed / Neutral",
         tagline: "The baseline. Learn this one first, because every other signal is a change from here.",
         cues: [
           { part: "Ears", text: "Resting in their natural position, neither pinned nor straining forward." },
           { part: "Mouth", text: "Loose and slightly open, tongue soft, no tension at the corners." },
-          { part: "Tail", text: "Carried at mid height, moving in a slow and easy sway." },
-          { part: "Body", text: "Weight evenly settled, muscles soft, breathing slow and even." },
+          { part: "Tail", text: "Hanging at mid height in an easy curve, moving gently." },
+          { part: "Body", text: "Weight evenly over all four feet, muscles soft, breathing slow and even." },
           { part: "Eyes", text: "Soft and blinking normally; the gaze wanders rather than fixing." },
         ],
         meaning:
@@ -93,20 +109,22 @@ export const dog: Animal = {
       icon: "\u{1F49A}",
       tone: "positive",
       pose: {
-        Spine: [-0.02, 0, 0],
-        Head: [0.05, 0, 0],
-        Ear_L_01: [-0.12, 0, 0],
-        Ear_R_01: [-0.12, 0, 0],
-        Tail_01: [-0.34, 0, 0],
-        Tail_02: [-0.2, 0, 0],
-        Tail_03: [-0.12, 0, 0],
+        Chest: [-0.03, 0, 0],
+        Neck_01: [-0.05, 0, 0],
+        Head: [-0.06, 0, 0],
+        Ear_L_01: [0.16, 0, 0],
+        Ear_R_01: [0.16, 0, 0],
+        Tail_01: [0.34, 0, 0],
+        Tail_02: [0.2, 0, 0],
+        Tail_03: [0.12, 0, 0],
       },
       oscillators: [
-        { bones: TAIL, axis: "z", amplitude: 0.3, frequency: 3.3, phaseStep: 0.42, falloff: 1.07 },
-        { bones: ["Spine"], axis: "z", amplitude: 0.035, frequency: 1.65 },
-        { bones: ["Head"], axis: "y", amplitude: 0.03, frequency: 1.65 },
+        { bones: TAIL, axis: "z", amplitude: 0.34, frequency: 3.2, phaseStep: 0.55, falloff: 1.12 },
+        { bones: ["Chest"], axis: "z", amplitude: 0.04, frequency: 1.6 },
+        { bones: ["Hips"], axis: "z", amplitude: 0.05, frequency: 1.6 },
+        { bones: ["Head"], axis: "y", amplitude: 0.03, frequency: 1.6 },
       ],
-      focus: { bone: "Tail_03", bias: 0.45, distance: 2.95, yaw: -2.2, pitch: 0.2 },
+      focus: { bone: "Tail_02", bias: 0.45, distance: 2.9, yaw: -2.3, pitch: 0.2 },
       card: {
         title: "Happy / Loose Tail Wag",
         tagline: "Not every wag is friendly. It is the looseness that carries the meaning.",
@@ -133,21 +151,21 @@ export const dog: Animal = {
       icon: "\u{1F442}",
       tone: "neutral",
       pose: {
-        Spine: [-0.07, 0, 0],
-        Head: [0.13, 0, 0],
-        Ear_L_01: [-0.3, 0, 0],
-        Ear_R_01: [-0.3, 0, 0],
-        Ear_L_02: [-0.12, 0, 0],
-        Ear_R_02: [-0.12, 0, 0],
-        Tail_01: [-0.5, 0, 0],
-        Tail_02: [-0.28, 0, 0],
-        Tail_03: [-0.14, 0, 0],
+        Chest: [-0.08, 0, 0],
+        Neck_01: [-0.12, 0, 0],
+        Neck_02: [-0.1, 0, 0],
+        Head: [-0.12, 0, 0],
+        Ear_L_01: [0.32, 0, 0],
+        Ear_R_01: [0.32, 0, 0],
+        Tail_01: [0.46, 0, 0],
+        Tail_02: [0.26, 0, 0],
+        Tail_03: [0.14, 0, 0],
       },
       oscillators: [
-        { bones: TAIL, axis: "z", amplitude: 0.07, frequency: 5.6, phaseStep: 0.2, falloff: 1.02 },
+        { bones: TAIL, axis: "z", amplitude: 0.07, frequency: 5.5, phaseStep: 0.25, falloff: 1.04 },
         { bones: ["Ear_L_01", "Ear_R_01"], axis: "x", amplitude: 0.02, frequency: 0.9 },
       ],
-      focus: { bone: "Head", bias: 0.75, distance: 2.25, yaw: 0.3, pitch: 0.08 },
+      focus: { bone: "Head", bias: 0.7, distance: 2.3, yaw: 0.35, pitch: 0.06 },
       card: {
         title: "Alert / Orienting",
         tagline: "Something has the dog's attention. What happens next depends on what they decide it is.",
@@ -174,22 +192,23 @@ export const dog: Animal = {
       icon: "\u{1F61F}",
       tone: "caution",
       pose: {
-        Spine: [0.15, 0, 0],
-        Head: [-0.2, 0.12, 0],
-        Ear_L_01: [0.45, 0, 0.06],
-        Ear_R_01: [0.45, 0, -0.06],
-        Ear_L_02: [0.18, 0, 0],
-        Ear_R_02: [0.18, 0, 0],
-        Tail_01: [0.55, 0, 0],
-        Tail_02: [0.4, 0, 0],
-        Tail_03: [0.3, 0, 0],
-        Tail_04: [0.2, 0, 0],
+        Chest: [0.18, 0, 0],
+        Spine_01: [0.1, 0, 0],
+        Neck_01: [0.16, 0, 0],
+        Neck_02: [0.12, 0, 0],
+        Head: [0.2, 0.14, 0],
+        Ear_L_01: [-0.42, 0, 0.08],
+        Ear_R_01: [-0.42, 0, -0.08],
+        Tail_01: [-0.55, 0, 0],
+        Tail_02: [-0.36, 0, 0],
+        Tail_03: [-0.24, 0, 0],
+        Tail_04: [-0.14, 0, 0],
       },
       oscillators: [
-        { bones: ["Spine"], axis: "x", amplitude: 0.007, frequency: 7.5 },
-        { bones: ["Ear_L_01", "Ear_R_01"], axis: "x", amplitude: 0.025, frequency: 1.4 },
+        { bones: ["Chest"], axis: "x", amplitude: 0.007, frequency: 7.5 },
+        { bones: ["Ear_L_01", "Ear_R_01"], axis: "x", amplitude: 0.022, frequency: 1.4 },
       ],
-      focus: { bone: "Tail_02", bias: 0.45, distance: 2.9, yaw: -2.0, pitch: 0.22 },
+      focus: { bone: "Tail_01", bias: 0.4, distance: 2.85, yaw: -2.1, pitch: 0.2 },
       card: {
         title: "Anxious / Worried",
         tagline: "The dog is telling you they are uncomfortable, quietly, and while they still can.",
@@ -217,22 +236,24 @@ export const dog: Animal = {
       icon: "\u{1FAE3}",
       tone: "alert",
       pose: {
-        Spine: [0.22, 0, 0],
-        Head: [-0.26, 0.5, 0.1],
-        Ear_L_01: [0.62, 0, 0.2],
-        Ear_R_01: [0.62, 0, -0.2],
-        Ear_L_02: [0.24, 0, 0],
-        Ear_R_02: [0.24, 0, 0],
-        Tail_01: [0.72, 0, 0],
-        Tail_02: [0.5, 0, 0],
-        Tail_03: [0.36, 0, 0],
-        Tail_04: [0.24, 0, 0],
+        Chest: [0.3, 0, 0],
+        Spine_01: [0.18, 0, 0],
+        Spine_02: [0.12, 0, 0],
+        Neck_01: [0.24, 0, 0],
+        Neck_02: [0.18, 0, 0],
+        Head: [0.24, 0.5, 0.1],
+        Ear_L_01: [-0.58, 0, 0.2],
+        Ear_R_01: [-0.58, 0, -0.2],
+        Tail_01: [-0.75, 0, 0],
+        Tail_02: [-0.5, 0, 0],
+        Tail_03: [-0.34, 0, 0],
+        Tail_04: [-0.2, 0, 0],
       },
       oscillators: [
-        { bones: TAIL, axis: "z", amplitude: 0.07, frequency: 2.1, phaseStep: 0.3 },
-        { bones: ["Spine"], axis: "x", amplitude: 0.009, frequency: 9 },
+        { bones: TAIL, axis: "z", amplitude: 0.07, frequency: 2.2, phaseStep: 0.4 },
+        { bones: ["Chest"], axis: "x", amplitude: 0.009, frequency: 9 },
       ],
-      focus: { bone: "Head", bias: 0.65, distance: 2.45, yaw: -0.8, pitch: 0.1 },
+      focus: { bone: "Head", bias: 0.6, distance: 2.5, yaw: -0.9, pitch: 0.08 },
       card: {
         title: "Fearful / Appeasing",
         tagline: "A dog trying to make themselves small and end the interaction peacefully.",
@@ -259,26 +280,47 @@ export const dog: Animal = {
       label: "Playful / Invitation",
       icon: "\u{1F3BE}",
       tone: "positive",
+      /*
+       * NOTE: this is a play *invitation*, not a full play bow.
+       *
+       * A textbook bow needs the chest translated down toward the ground while
+       * the hips stay up. The pose engine applies bone ROTATIONS only, and on
+       * an FK rig rotating the forelegs swings the legs without moving the
+       * torso — so the chest cannot actually descend. What is achievable is a
+       * strong forward dip through the spine with the rear raised, forelegs
+       * reaching forward, head up and a fast high wag, which still reads as a
+       * play solicitation. Adding root translation to the engine would allow
+       * the real thing.
+       */
       pose: {
-        Spine: [-0.17, 0, 0],
-        Head: [0.07, 0, 0.3],
-        Ear_L_01: [-0.26, 0, 0],
-        Ear_R_01: [-0.26, 0, 0],
-        Tail_01: [-0.45, 0, 0],
-        Tail_02: [-0.26, 0, 0],
-        Tail_03: [-0.15, 0, 0],
+        Spine_01: [0.34, 0, 0],
+        Spine_02: [0.3, 0, 0],
+        Chest: [0.26, 0, 0],
+        Hips: [-0.26, 0, 0],
+        ForeLeg_L_01: [0.85, 0, 0],
+        ForeLeg_R_01: [0.85, 0, 0],
+        ForeLeg_L_02: [-0.85, 0, 0],
+        ForeLeg_R_02: [-0.85, 0, 0],
+        Neck_01: [-0.3, 0, 0],
+        Neck_02: [-0.24, 0, 0],
+        Head: [-0.34, 0, 0.24],
+        Ear_L_01: [0.28, 0, 0],
+        Ear_R_01: [0.28, 0, 0],
+        Tail_01: [0.5, 0, 0],
+        Tail_02: [0.3, 0, 0],
+        Tail_03: [0.16, 0, 0],
       },
       oscillators: [
-        { bones: TAIL, axis: "z", amplitude: 0.38, frequency: 4.9, phaseStep: 0.5, falloff: 1.06 },
-        { bones: ["Spine"], axis: "z", amplitude: 0.05, frequency: 2.45 },
-        { bones: ["Head"], axis: "z", amplitude: 0.06, frequency: 1.2 },
+        { bones: TAIL, axis: "z", amplitude: 0.4, frequency: 4.8, phaseStep: 0.6, falloff: 1.12 },
+        { bones: ["Hips"], axis: "z", amplitude: 0.06, frequency: 2.4 },
+        { bones: ["Head"], axis: "z", amplitude: 0.05, frequency: 1.2 },
       ],
-      focus: { bone: "Spine", bias: 0.2, distance: 2.95, yaw: 0.65, pitch: 0.13 },
+      focus: { bone: "Chest", bias: 0.2, distance: 2.9, yaw: 0.6, pitch: 0.12 },
       card: {
         title: "Playful / Play Invitation",
         tagline: "An explicit offer: everything that follows is play, not conflict.",
         cues: [
-          { part: "Posture", text: "Front end dropped, rear end up. The classic play bow." },
+          { part: "Posture", text: "Front end dropped low with the rear end up. The classic play bow." },
           { part: "Head", text: "Tilted, with bright soft eyes and an open relaxed mouth." },
           { part: "Movement", text: "Bouncy, exaggerated and inefficient. Play looks deliberately clumsy." },
           { part: "Tail", text: "High and wagging fast and loosely across a wide arc." },

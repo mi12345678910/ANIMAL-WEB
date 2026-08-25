@@ -24,8 +24,14 @@
     backdrop to read at all. Think product-photography lightbox.
   */
   --stage-core: #ffffff;
-  --stage-mid: #e7edf6;
-  --stage-edge: #c3cede;
+  --stage-mid: #e9e9ea;
+  --stage-edge: #c6c7c9;
+
+  /* Opaque surfaces for text-heavy panels (chat). No transparency at all. */
+  --surface: #ffffff;
+  --surface-raised: #eef1f6;
+  --surface-border: rgba(15, 23, 42, 0.14);
+  --surface-shadow: 0 18px 48px rgba(15, 23, 42, 0.22);
 
   --tone-positive: #059669;
   --tone-neutral: #2563eb;
@@ -49,9 +55,14 @@
   --ring: rgba(94, 234, 212, 0.45);
 
   /* Still a lit pool, just cooled down so it sits inside the dark UI. */
-  --stage-core: #8f9dbb;
-  --stage-mid: #5d6b8c;
-  --stage-edge: #333d5c;
+  --stage-core: #9a9c9f;
+  --stage-mid: #6d6f73;
+  --stage-edge: #3d3f43;
+
+  --surface: #1b2334;
+  --surface-raised: #263049;
+  --surface-border: rgba(255, 255, 255, 0.16);
+  --surface-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
 
   --tone-positive: #34d399;
   --tone-neutral: #60a5fa;
@@ -120,6 +131,22 @@ body {
   box-shadow: var(--glass-shadow);
   backdrop-filter: blur(24px) saturate(160%);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
+}
+
+/*
+  Fully opaque surface. Used for anything with a body of text to read — the
+  chat panel and its bubbles. Translucent glass over the behaviour buttons made
+  those buttons show through the conversation and the text unreadable.
+*/
+.surface {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--surface-shadow);
+}
+
+.surface-raised {
+  background: var(--surface-raised);
+  border: 1px solid var(--surface-border);
 }
 
 .viewport-shell {

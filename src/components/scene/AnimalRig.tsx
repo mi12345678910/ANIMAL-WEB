@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useAnimations, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
+import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { Animal, Behavior } from "@/animals/types";
 import { PoseMixer } from "@/lib/poseEngine";
 
@@ -31,8 +32,13 @@ export function AnimalRig({ animal, behavior, onReady }: Props) {
   const { scene, animations } = useGLTF(spec.url);
 
   // Clone so remounting (or two viewports) never share mutated bone state.
+  //
+  // This MUST be SkeletonUtils.clone, not Object3D.clone(): the latter copies a
+  // SkinnedMesh by reference to the *original* skeleton, so the cloned bones we
+  // then rotate deform nothing and the model sits frozen in its bind pose.
+  // SkeletonUtils rebinds each cloned mesh to the cloned bone hierarchy.
   const root = useMemo(() => {
-    const clone = scene.clone(true);
+    const clone = cloneSkinned(scene);
     clone.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (mesh.isMesh) {

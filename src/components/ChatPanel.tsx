@@ -1,9 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Animal } from "@/animals/types";
 import { useApp, type ChatMessage } from "@/lib/store";
+
+/**
+ * `crypto.randomUUID` only exists in a secure context. Opening the dev server
+ * over a LAN IP (http://192.168.x.x:3000) is NOT secure, so it is undefined
+ * there and throws — which previously killed the send handler and left the
+ * panel permanently disabled. Always go through this.
+ */
+function newId(): string {
+  const c = globalThis.crypto as Crypto | undefined;
+  if (c && typeof c.randomUUID === "function") return c.randomUUID();
+  return `m_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
 
 function TypingIndicator() {
   return (
@@ -29,8 +41,8 @@ function Bubble({ message }: { message: ChatMessage }) {
       className={`flex ${isUser ? "justify-end" : "justify-start"}`}
     >
       <div
-        className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[0.8rem] leading-relaxed ${
-          isUser ? "rounded-br-md text-white" : "glass rounded-bl-md"
+        className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[0.82rem] leading-relaxed ${
+          isUser ? "rounded-br-md text-white" : "surface-raised rounded-bl-md text-[var(--fg)]"
         }`}
         style={isUser ? { background: "var(--accent)" } : undefined}
       >
@@ -40,7 +52,7 @@ function Bubble({ message }: { message: ChatMessage }) {
           <>
             <p className="whitespace-pre-wrap">{message.content}</p>
             {message.sources && message.sources.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1 border-t border-[var(--glass-border)] pt-2">
+              <div className="mt-2 flex flex-wrap gap-1 border-t border-[var(--surface-border)] pt-2">
                 {message.sources.map((s, i) => (
                   <span
                     key={i}
@@ -66,60 +78,86 @@ export function ChatPanel({ animal }: { animal: Animal }) {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  /**
+   * Guards against double-submit without gating the UI on async state. If a
+   * render ever left `chatBusy` stuck true, the old code refused every
+   * subsequent send forever; this ref is always cleared in `finally`.
+   */
+  const inFlight = useRef(false);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, chatOpen]);
 
+  // Reopening the panel should never inherit a stuck busy state from before.
   useEffect(() => {
-    if (chatOpen) inputRef.current?.focus();
-  }, [chatOpen]);
-
-  async function send(text: string) {
-    const question = text.trim();
-    if (!question || chatBusy) return;
-
-    setInput("");
-    setChatBusy(true);
-
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: question };
-    const pendingId = crypto.randomUUID();
-    addMessage(userMsg);
-    addMessage({ id: pendingId, role: "assistant", content: "", pending: true });
-
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: question,
-          animalId: animal.id,
-          // Context so the RAG backend can bias retrieval toward what the user
-          // is currently looking at.
-          behaviorId,
-          history: messages.filter((m) => !m.pending).map((m) => ({ role: m.role, content: m.content })),
-        }),
-      });
-
-      if (!res.ok) throw new Error(`Request failed (${res.status})`);
-      const data = await res.json();
-      updateMessage(pendingId, {
-        content: data.reply ?? "No response.",
-        sources: data.sources,
-        pending: false,
-      });
-    } catch (err) {
-      updateMessage(pendingId, {
-        content:
-          err instanceof Error
-            ? `Sorry — I couldn't reach the knowledge base. (${err.message})`
-            : "Sorry — something went wrong.",
-        pending: false,
-      });
-    } finally {
+    if (chatOpen) {
+      inFlight.current = false;
       setChatBusy(false);
+      inputRef.current?.focus();
     }
-  }
+  }, [chatOpen, setChatBusy]);
+
+  const send = useCallback(
+    async (text: string) => {
+      const question = text.trim();
+      if (!question || inFlight.current) return;
+
+      inFlight.current = true;
+      setInput("");
+      setChatBusy(true);
+
+      const pendingId = newId();
+      // Snapshot the prior turns BEFORE appending this one, otherwise the
+      // current question would be sent twice (once as history, once as
+      // `message`). Read from the store rather than the render closure so
+      // rapid successive sends still see the latest transcript.
+      const history = useApp
+        .getState()
+        .messages.filter((m) => !m.pending)
+        .map((m) => ({ role: m.role, content: m.content }));
+
+      try {
+        addMessage({ id: newId(), role: "user", content: question });
+        addMessage({ id: pendingId, role: "assistant", content: "", pending: true });
+
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: question,
+            animalId: animal.id,
+            // Context so the RAG backend can bias retrieval toward what the
+            // user is currently looking at.
+            behaviorId,
+            history,
+          }),
+        });
+
+        if (!res.ok) throw new Error(`Request failed (${res.status})`);
+        const data = await res.json();
+        updateMessage(pendingId, {
+          content: data.reply ?? "No response.",
+          sources: data.sources,
+          pending: false,
+        });
+      } catch (err) {
+        updateMessage(pendingId, {
+          content:
+            err instanceof Error
+              ? `Sorry — I couldn't reach the knowledge base. (${err.message})`
+              : "Sorry — something went wrong.",
+          pending: false,
+        });
+      } finally {
+        // Always runs, so the panel can never latch shut.
+        inFlight.current = false;
+        setChatBusy(false);
+        inputRef.current?.focus();
+      }
+    },
+    [addMessage, updateMessage, setChatBusy, animal.id, behaviorId],
+  );
 
   return (
     <AnimatePresence>
@@ -129,16 +167,23 @@ export function ChatPanel({ animal }: { animal: Animal }) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 24, scale: 0.97 }}
           transition={{ duration: 0.24, ease: "easeOut" }}
-          className="glass-strong pointer-events-auto flex h-[min(30rem,72vh)] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl"
+          className="surface pointer-events-auto flex h-[min(30rem,72vh)] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl"
           aria-label="Knowledge chat"
         >
-          <header className="flex items-center gap-2.5 border-b border-[var(--glass-border)] px-4 py-3">
-            <span className="grid h-7 w-7 place-items-center rounded-lg text-sm" style={{ background: "var(--accent-soft)" }}>
+          <header className="flex items-center gap-2.5 border-b border-[var(--surface-border)] px-4 py-3">
+            <span
+              className="grid h-7 w-7 place-items-center rounded-lg text-sm"
+              style={{ background: "var(--accent-soft)" }}
+            >
               📚
             </span>
             <div className="flex-1">
-              <h3 className="text-[0.8rem] font-semibold leading-tight">Ask about {animal.name.toLowerCase()}s</h3>
-              <p className="text-[0.62rem] leading-tight text-[var(--muted)]">Answers from the reference library</p>
+              <h3 className="text-[0.8rem] font-semibold leading-tight">
+                Ask about {animal.name.toLowerCase()}s
+              </h3>
+              <p className="text-[0.62rem] leading-tight text-[var(--muted)]">
+                Answers from the reference library
+              </p>
             </div>
             <button
               onClick={toggleChat}
@@ -151,25 +196,29 @@ export function ChatPanel({ animal }: { animal: Animal }) {
 
           <div ref={scrollRef} className="scroll-slim flex-1 space-y-2.5 overflow-y-auto px-4 py-3.5">
             {messages.length === 0 && (
-              <div className="pt-2 text-center">
-                <p className="text-[0.78rem] leading-relaxed text-[var(--muted)]">
-                  Ask anything about {animal.name.toLowerCase()} body language — what a signal means, or what to
-                  do about it.
-                </p>
-              </div>
+              <p className="pt-2 text-center text-[0.78rem] leading-relaxed text-[var(--muted)]">
+                Ask anything about {animal.name.toLowerCase()} body language — what a signal means, or
+                what to do about it.
+              </p>
             )}
             {messages.map((m) => (
               <Bubble key={m.id} message={m} />
             ))}
           </div>
 
-          {messages.length === 0 && animal.starterQuestions.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 px-4 pb-2.5">
+          {/*
+            Suggestions stay available for the whole conversation. Hiding them
+            after the first reply made the panel look like it had stopped
+            accepting questions.
+          */}
+          {animal.starterQuestions.length > 0 && (
+            <div className="flex gap-1.5 overflow-x-auto border-t border-[var(--surface-border)] px-4 py-2">
               {animal.starterQuestions.map((q) => (
                 <button
                   key={q}
                   onClick={() => send(q)}
-                  className="focusable rounded-full border border-[var(--glass-border)] px-2.5 py-1 text-[0.66rem] leading-tight text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                  disabled={chatBusy}
+                  className="focusable shrink-0 rounded-full border border-[var(--surface-border)] px-2.5 py-1 text-[0.66rem] leading-tight whitespace-nowrap text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40"
                 >
                   {q}
                 </button>
@@ -182,7 +231,7 @@ export function ChatPanel({ animal }: { animal: Animal }) {
               e.preventDefault();
               send(input);
             }}
-            className="flex items-end gap-2 border-t border-[var(--glass-border)] p-2.5"
+            className="flex items-end gap-2 border-t border-[var(--surface-border)] p-2.5"
           >
             <textarea
               ref={inputRef}
@@ -195,8 +244,10 @@ export function ChatPanel({ animal }: { animal: Animal }) {
                   send(input);
                 }
               }}
-              placeholder="Why is my dog yawning?"
-              className="scroll-slim max-h-24 flex-1 resize-none rounded-xl border border-[var(--glass-border)] bg-transparent px-3 py-2 text-[0.8rem] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
+              placeholder={chatBusy ? "Thinking…" : "Ask a question…"}
+              // Deliberately never disabled: the user can keep typing their next
+              // question while an answer is still streaming back.
+              className="scroll-slim max-h-24 flex-1 resize-none rounded-xl border border-[var(--surface-border)] bg-transparent px-3 py-2 text-[0.82rem] text-[var(--fg)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
             />
             <button
               type="submit"

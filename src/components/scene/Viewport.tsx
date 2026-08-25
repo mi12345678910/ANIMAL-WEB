@@ -118,33 +118,41 @@ function Scene({
       />
 
       {/*
-        Lighting is tuned for a near-black coat. Ambient alone flattens it to a
-        silhouette, so most of the shaping comes from a bright key, two coloured
-        rims that pick out the edges, and a bounce that lifts the underside.
+        Neutral three-point setup. Everything stays white/near-white on purpose:
+        an earlier pass used the species accent as a strong rim and tinted the
+        cream chest fur green. Accent colour belongs in the UI, not on the model.
+
+        Intensities are deliberately moderate — the previous values blew the
+        light chest fur to pure white while the black back stayed unreadable.
       */}
-      <ambientLight intensity={1.15} />
-      <hemisphereLight args={["#ffffff", "#8ea0c0", 0.9]} />
+      <ambientLight intensity={0.85} />
+      <hemisphereLight args={["#ffffff", "#b9c2d0", 0.55]} />
+
+      {/* KEY: front-right and high. Defines form and casts the ground shadow. */}
       <directionalLight
-        position={[4.5, 7, 5]}
-        intensity={3.1}
+        position={[4.5, 6.5, 5]}
+        intensity={1.9}
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0005}
       >
-        <orthographicCamera attach="shadow-camera" args={[-4, 4, 4, -4, 0.1, 24]} />
+        <orthographicCamera attach="shadow-camera" args={[-5, 5, 5, -5, 0.1, 28]} />
       </directionalLight>
-      {/* Rim lights: on a black coat, edge separation does most of the work. */}
-      <directionalLight position={[-5, 3.5, -3.5]} intensity={2.6} color="#a5d8ff" />
-      <directionalLight position={[3, 1.6, -5]} intensity={2.0} color={animal.accent} />
-      {/* Bounce off the stage floor, so the belly and legs don't crush to black. */}
-      <directionalLight position={[0, -2.5, 3.5]} intensity={0.85} color="#dbe6f5" />
+
+      {/* FILL: opposite the key, soft, no shadow — opens up the dark side. */}
+      <directionalLight position={[-5, 2.5, 3.5]} intensity={0.95} color="#eef3fb" />
+
+      {/* RIM / back light: separates the dark coat from the backdrop. */}
+      <directionalLight position={[-2.5, 4, -5.5]} intensity={1.25} color="#ffffff" />
+
+      {/* BOUNCE: low front, so chest, belly and legs don't crush to black. */}
+      <directionalLight position={[0, -2, 4]} intensity={0.45} color="#ffffff" />
 
       {/* Built from Lightformers rather than a remote HDRI, so it works offline. */}
       <Environment resolution={256}>
-        <Lightformer intensity={3.4} position={[0, 4, -3]} scale={[9, 9, 1]} color="#ffffff" />
-        <Lightformer intensity={2.0} position={[-4, 2, 3]} scale={[6, 6, 1]} color="#bcd9ff" />
-        <Lightformer intensity={1.6} position={[4, 1, 3]} scale={[6, 6, 1]} color={animal.accent} />
-        <Lightformer intensity={1.1} position={[0, -3, 2]} scale={[8, 4, 1]} color="#ffffff" />
+        <Lightformer intensity={1.5} position={[0, 4, -3]} scale={[9, 9, 1]} color="#ffffff" />
+        <Lightformer intensity={0.9} position={[-4, 2, 3]} scale={[6, 6, 1]} color="#f2f6ff" />
+        <Lightformer intensity={0.7} position={[4, 1, 3]} scale={[6, 6, 1]} color="#ffffff" />
       </Environment>
 
       <Suspense fallback={<Loader />}>
@@ -184,10 +192,10 @@ export function Viewport({ animal, behavior }: { animal: Animal; behavior: Behav
         gl={{
           antialias: true,
           alpha: true,
-          // ACES crushes shadow detail on a black coat; Neutral keeps it, and a
-          // touch of extra exposure lifts the midtones off the stage.
+          // ACES crushes shadow detail on a dark coat; Neutral preserves it.
+          // Exposure stays at 1.0 — lifting it blew out the cream chest fur.
           toneMapping: THREE.NeutralToneMapping,
-          toneMappingExposure: 1.15,
+          toneMappingExposure: 1.0,
         }}
         camera={{ position: [1.67, 1.6, 3.05], fov: 38, near: 0.1, far: 100 }}
       >
