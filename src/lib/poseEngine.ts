@@ -97,6 +97,13 @@ function evaluateMotion(terms: CompiledTerm[] | undefined, time: number, out: TH
   }
 }
 
+/**
+ * How many behaviour layers may be alive at once: one fading in plus three
+ * fading out. Enough for a natural crossfade, few enough that hammering the
+ * buttons cannot turn the pose into an average of everything clicked.
+ */
+const MAX_LAYERS = 4;
+
 interface Layer {
   compiled: CompiledBehavior;
   /** Current mix weight, eased toward `target`. */
@@ -114,6 +121,15 @@ export class PoseMixer {
   private layers: Layer[] = [];
   private idle: CompiledBehavior | null = null;
   private time = 0;
+  /**
+   * Bones written on the previous frame. A bone that stops being driven has to
+   * be written once more — at exactly rest — or it freezes at its last value.
+   */
+  private lastTouched = new Set<string>();
+  /** Bones owed a one-off restore to the bind pose. */
+  private pendingRest = new Set<string>();
+  /** True while a baked AnimationClip owns the skeleton. */
+  private clipDriven = false;
 
   /** Scratch objects, reused every frame to avoid per-frame allocation. */
   private scratchVec = new THREE.Vector3();
@@ -149,35 +165,84 @@ export class PoseMixer {
     if (behavior) {
       this.layers.push({ compiled: compileBehavior(behavior), weight: 0, target: 1 });
     }
+
+    // Cap the stack.
+    //
+    // A layer only retires once its weight decays below 0.001, which takes
+    // roughly a second. Clicking the behaviour buttons faster than that piles
+    // up layers without limit — 40 clicks left 40 alive — and because the
+    // weights are normalised to sum to 1, the skeleton renders the weighted
+    // AVERAGE of everything still fading. The result is a mush that belongs to
+    // no behaviour and visibly lags the button the user actually pressed.
+    //
+    // The layers dropped are always the faintest, so they are the ones
+    // contributing least; and any bone left behind is written back to rest on
+    // the next frame by the `lastTouched` pass, so dropping them cannot freeze
+    // anything mid-pose.
+    if (this.layers.length > MAX_LAYERS) {
+      const incoming = this.layers[this.layers.length - 1];
+      const strongest = this.layers
+        .slice(0, -1)
+        .sort((a, b) => b.weight - a.weight)
+        .slice(0, MAX_LAYERS - 1);
+      this.layers = [...strongest, incoming];
+    }
   }
 
-  /** Restore every bone to its captured bind pose. */
-  reset() {
-    for (const [name, bone] of this.bones) {
-      const rest = this.rest.get(name);
-      if (rest) bone.quaternion.copy(rest);
-    }
+  /** Queue every bone for a write back to its captured bind pose. */
+  restoreAll() {
+    for (const name of this.bones.keys()) this.pendingRest.add(name);
+  }
+
+  /**
+   * Hand the skeleton to or from a baked `AnimationClip`.
+   *
+   * The two drivers must never write the same frame — whichever runs last wins
+   * and they visibly fight. While a clip is playing this mixer writes nothing;
+   * when the clip gives control back, EVERY bone needs restoring, because
+   * three.js leaves bones wherever an action stopped rather than returning them
+   * to the bind pose.
+   *
+   * That was the "slanted dog": the dog's idle-breathing clip animates all 55
+   * bones, the procedural behaviours touch 19, and the other 36 — both hind
+   * legs, all four feet, shoulders, toes — stayed frozen mid-stride the moment
+   * the clip stopped.
+   */
+  setClipDriven(clipDriven: boolean) {
+    if (this.clipDriven === clipDriven) return;
+    this.clipDriven = clipDriven;
+    if (!clipDriven) this.restoreAll();
   }
 
   update(delta: number) {
+    // Time advances even while suspended, so oscillators do not jump when
+    // control comes back from a clip.
     this.time += delta;
+    if (this.clipDriven) return;
 
     // Ease layer weights, and retire any that have faded out.
     const k = 1 - Math.exp(-this.blendRate * delta);
-    let total = 0;
-    for (const layer of this.layers) {
-      layer.weight += (layer.target - layer.weight) * k;
-      total += layer.weight;
-    }
+    for (const layer of this.layers) layer.weight += (layer.target - layer.weight) * k;
     this.layers = this.layers.filter((l) => l.target > 0 || l.weight > 0.001);
 
-    // Collect every bone touched this frame so bones that just stopped being
-    // driven still get reset to rest rather than freezing mid-pose.
-    const touched = new Set<string>();
-    for (const layer of this.layers) for (const b of layer.compiled.bones) touched.add(b);
-    if (this.idle) for (const b of this.idle.bones) touched.add(b);
-
+    // Total AFTER retiring, otherwise a layer dropped this frame still shrinks
+    // `norm` and the incoming behaviour comes in under-weighted.
+    let total = 0;
+    for (const layer of this.layers) total += layer.weight;
     const norm = total > 1 ? 1 / total : 1;
+
+    const active = new Set<string>();
+    for (const layer of this.layers) for (const b of layer.compiled.bones) active.add(b);
+    if (this.idle) for (const b of this.idle.bones) active.add(b);
+
+    // Also write anything driven last frame or awaiting a restore. Those bones
+    // accumulate a zero delta below, so they land exactly on rest instead of
+    // freezing at whatever the retired layer last left them at.
+    const touched = new Set(active);
+    for (const b of this.lastTouched) touched.add(b);
+    for (const b of this.pendingRest) touched.add(b);
+    this.pendingRest.clear();
+    this.lastTouched = active;
 
     for (const boneName of touched) {
       const bone = this.bones.get(boneName);

@@ -112,6 +112,8 @@ export function AnimalRig({ animal, behavior, onReady }: Props) {
   useLayoutEffect(() => {
     const mixer = new PoseMixer(root, animal.idle);
     mixerRef.current = mixer;
+    // A new model means any action from the previous one is gone with it.
+    activeClip.current = null;
 
     // Convert the root-local centre into world space by replaying the wrapper
     // group's transform below: scale, then the faceYaw spin, then yOffset.
@@ -130,21 +132,32 @@ export function AnimalRig({ animal, behavior, onReady }: Props) {
     const mixer = mixerRef.current;
     if (!mixer) return;
 
-    // Stop any baked clip from the previous behaviour.
-    if (activeClip.current) {
-      activeClip.current.fadeOut(0.3);
-      activeClip.current = null;
-    }
-
     const clipName = behavior?.clip;
     const bakedAction = clipName ? actions[clipName] : undefined;
 
+    // Stop the previous clip OUTRIGHT rather than fading it.
+    //
+    // `fadeOut` keeps the action writing every bone for the length of the fade,
+    // while the PoseMixer is simultaneously trying to restore those bones — the
+    // two fight for the same quaternions and the result depends on frame order.
+    // Switching behaviour quickly interrupted the fade partway and left the
+    // skeleton in whatever mixture existed at that instant, which is why fast
+    // clicking produced random broken poses.
+    if (activeClip.current && activeClip.current !== bakedAction) {
+      activeClip.current.stop();
+      activeClip.current = null;
+    }
+
     if (bakedAction) {
-      // Model ships with a real animation for this behaviour: use it.
+      // Model ships with a real animation for this behaviour: use it, and stand
+      // the procedural mixer down so only one driver owns the skeleton.
       mixer.setBehavior(null);
-      bakedAction.reset().fadeIn(0.3).play();
+      mixer.setClipDriven(true);
+      bakedAction.reset().fadeIn(0.25).play();
       activeClip.current = bakedAction;
     } else {
+      // Taking the skeleton back restores every bone the clip may have moved.
+      mixer.setClipDriven(false);
       mixer.setBehavior(behavior);
     }
   }, [behavior, actions]);
