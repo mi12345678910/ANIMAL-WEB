@@ -2,6 +2,8 @@ import type { Animal } from "./types";
 import { dog } from "./dog";
 import { horse } from "./horse";
 import { cat } from "./cat";
+import { hamster } from "./hamster";
+import { bird } from "./bird";
 
 /**
  * The species registry.
@@ -14,7 +16,8 @@ import { cat } from "./cat";
  * A species with `status: "coming-soon"` renders in the selector as a disabled
  * entry and needs no model or behaviours.
  */
-export const ANIMALS: Animal[] = [dog, cat, horse];
+/** Ready species first, then the "Soon" placeholders, in selector order. */
+export const ANIMALS: Animal[] = [dog, cat, horse, hamster, bird];
 
 export const DEFAULT_ANIMAL_ID = dog.id;
 

@@ -2,9 +2,9 @@
 
 An interactive 3D web app for learning to read animal body language. Pick a
 behaviour, watch the model take the posture, and read what the signal means and
-how to respond. Ships with a dog, a cat and a horse, and a chat panel that
-answers from a 58-signal reference library covering far more than the models can
-pose.
+how to respond. Ships with a dog, a cat and a horse — plus hamster and bird
+listed as "Soon" placeholders — and a chat panel that answers from a 58-signal
+reference library covering far more than the models can pose.
 
 ```bash
 npm run dev     # http://localhost:3000
@@ -198,8 +198,11 @@ Nothing in `src/components` needs to change.
 2. Create `src/animals/<id>.ts` exporting an `Animal` (see `dog.ts`).
 3. Add it to `ANIMALS` in `src/animals/registry.ts`.
 
-An entry with `status: "coming-soon"` renders as a disabled selector option and
-needs no model or behaviours.
+An entry with `status: "coming-soon"` renders as a disabled selector option with
+a "Soon" pill and needs no model, rig, behaviours or starter questions —
+`hamster.ts` and `bird.ts` are the worked examples, each about ten lines. To
+ship one, fill in those fields and flip `status` to `"ready"`; nothing else
+changes. Ready species are listed first in `ANIMALS`, placeholders last.
 
 ## The chat panel
 
