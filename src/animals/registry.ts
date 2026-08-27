@@ -1,5 +1,7 @@
 import type { Animal } from "./types";
 import { dog } from "./dog";
+import { horse } from "./horse";
+import { cat } from "./cat";
 
 /**
  * The species registry.
@@ -12,29 +14,6 @@ import { dog } from "./dog";
  * A species with `status: "coming-soon"` renders in the selector as a disabled
  * entry and needs no model or behaviours.
  */
-
-const cat: Animal = {
-  id: "cat",
-  name: "Cat",
-  icon: "\u{1F408}",
-  status: "coming-soon",
-  accent: { light: "#6d3fd4", dark: "#c4b5fd" },
-  blurb: "Domestic cat · Felis catus",
-  behaviors: [],
-  starterQuestions: [],
-};
-
-const horse: Animal = {
-  id: "horse",
-  name: "Horse",
-  icon: "\u{1F40E}",
-  status: "coming-soon",
-  accent: { light: "#a8590c", dark: "#fcd34d" },
-  blurb: "Domestic horse · Equus caballus",
-  behaviors: [],
-  starterQuestions: [],
-};
-
 export const ANIMALS: Animal[] = [dog, cat, horse];
 
 export const DEFAULT_ANIMAL_ID = dog.id;

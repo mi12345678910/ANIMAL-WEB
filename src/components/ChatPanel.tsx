@@ -17,6 +17,68 @@ function newId(): string {
   return `m_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/**
+ * Renders the tiny subset of Markdown the answers actually use: `**bold**` for
+ * the name of a signal, and `- ` lines as a bullet list.
+ *
+ * Answers used to be dropped into a `whitespace-pre-wrap` paragraph, which
+ * showed the asterisks literally — `**Tail Swishing** — the mood is shifting`.
+ * A full Markdown library would be far more than this needs; anything outside
+ * these two rules is passed through as plain text.
+ */
+function inline(text: string, keyPrefix: string) {
+  // Split on the bold delimiters, keeping the captured inner text. Odd indices
+  // are the bold runs because the pattern has exactly one capture group.
+  return text.split(/\*\*(.+?)\*\*/g).map((part, i) =>
+    i % 2 === 1 ? (
+      <strong key={`${keyPrefix}-${i}`} className="font-semibold">
+        {part}
+      </strong>
+    ) : (
+      part
+    ),
+  );
+}
+
+function RichText({ text }: { text: string }) {
+  // Group consecutive "- " lines so they become one <ul> rather than several.
+  const blocks: { kind: "p" | "ul"; lines: string[] }[] = [];
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const isBullet = /^[-*]\s+/.test(trimmed);
+    const last = blocks[blocks.length - 1];
+    if (isBullet) {
+      const item = trimmed.replace(/^[-*]\s+/, "");
+      if (last?.kind === "ul") last.lines.push(item);
+      else blocks.push({ kind: "ul", lines: [item] });
+    } else {
+      blocks.push({ kind: "p", lines: [trimmed] });
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {blocks.map((block, b) =>
+        block.kind === "ul" ? (
+          <ul key={b} className="ml-1 space-y-0.5">
+            {block.lines.map((item, i) => (
+              <li key={i} className="flex gap-1.5">
+                <span aria-hidden className="select-none opacity-50">
+                  •
+                </span>
+                <span>{inline(item, `${b}-${i}`)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p key={b}>{inline(block.lines[0], `${b}`)}</p>
+        ),
+      )}
+    </div>
+  );
+}
+
 function TypingIndicator() {
   return (
     <div className="flex items-center gap-1 px-1 py-1.5" aria-label="Assistant is typing">
@@ -49,7 +111,11 @@ function Bubble({ message }: { message: ChatMessage }) {
           <TypingIndicator />
         ) : (
           <>
-            <p className="whitespace-pre-wrap">{message.content}</p>
+            {isUser ? (
+              <p className="whitespace-pre-wrap">{message.content}</p>
+            ) : (
+              <RichText text={message.content} />
+            )}
             {message.sources && message.sources.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1 border-t border-[var(--surface-border)] pt-2">
                 {message.sources.map((s, i) => (

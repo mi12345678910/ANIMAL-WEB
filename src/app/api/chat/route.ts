@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { getRetriever, type RetrievedChunk } from "@/lib/rag";
 import { getAnimal, getBehavior } from "@/animals/registry";
+import { getGuideEntry } from "@/knowledge/guide";
 
 export const runtime = "nodejs";
 
@@ -17,14 +18,14 @@ const MAX_HISTORY_TURNS = 10;
 
 const SYSTEM_PROMPT = `You are a friendly guide to animal body language in an educational 3D web app. Your readers are ordinary pet owners, not professionals.
 
-Answer using the reference material in <context>. If it does not cover the question, say so plainly and give general, well-established guidance rather than inventing specifics.
+<context> holds passages from a body-language field guide, each one a signal with what it means and what to do about it. Answer from those passages. If they do not cover the question, say so plainly and give general, well-established guidance rather than inventing specifics.
 
 Keep every answer SHORT and easy to read. Use this shape:
-1. One plain sentence that answers the question directly.
-2. "Look for:" then at most three short bullets naming what to watch (ears, tail, body, face).
+1. One plain sentence that answers the question directly. Put the name of the signal in **bold** at the front when there is one.
+2. "Look for:" then at most three short bullets, each starting with "- ", naming what to watch (ears, tail, body, face). Skip this section entirely if the question is not about reading a signal.
 3. "What to do:" then one sentence.
 
-Hard limits: under 90 words total. Short sentences. No jargon unless you explain it in the same breath. Do not add headings, preambles, caveats, or a summary at the end.
+Hard limits: under 90 words total. Short sentences. Bold only the signal's name. No other formatting — no headings, no numbered lists, no tables. No preambles, caveats, or a summary at the end. No jargon unless you explain it in the same breath.
 
 Always: describe what is observable rather than asserting what the animal feels; treat signals in combination, never a single cue alone; never advise punishing a warning like a growl; and if there is bite risk, pain, or a sudden change in behaviour, say to see a vet or a qualified force-free behaviourist.`;
 
@@ -46,6 +47,29 @@ function asCue(text: string): string {
   return firstSentence(text).replace(/\.$/, "");
 }
 
+/** Total characters of advice to show before it stops being skimmable. */
+const ACTION_BUDGET = 300;
+
+/**
+ * Pick the actions to show under "What to do".
+ *
+ * Only the first one is not enough: several guide entries split their advice
+ * across branches, and the source does not always lead with the branch a
+ * worried reader needs. "Rearing" opens with foals playing in a pasture, so a
+ * single-action answer told someone whose horse had just reared to enjoy the
+ * view. Two fit inside a still-skimmable answer and cover both branches.
+ */
+function takeActions(actions: string[]): string[] {
+  const picked: string[] = [];
+  let budget = ACTION_BUDGET;
+  for (const action of actions.slice(0, 2)) {
+    if (picked.length > 0 && action.length > budget) break;
+    picked.push(action);
+    budget -= action.length;
+  }
+  return picked;
+}
+
 /**
  * Fallback answer used when no ANTHROPIC_API_KEY is configured.
  *
@@ -53,32 +77,48 @@ function asCue(text: string): string {
  * whole reference card — that reads as a wall of text. Instead it composes the
  * same shape the model is asked for: one-line answer, a few cues, one action.
  */
-function extractiveAnswer(chunks: RetrievedChunk[], animalName: string): string {
+function extractiveAnswer(chunks: RetrievedChunk[]): string {
   if (chunks.length === 0) {
     return `I don't have anything on that yet. Try asking about the tail, the ears, or how the body is held.`;
   }
 
   const top = chunks[0];
-  const behavior = top.source
-    ? getBehavior(getAnimal(top.source.animalId), top.source.behaviorId)
-    : null;
 
-  // A chunk from a PDF/vector store has no structured card — excerpt it instead.
-  if (!behavior) {
-    return `${firstSentence(top.text)}\n\nFrom **${top.title}**.`;
+  // Guide entries are already written as meaning + actions, which is the shape
+  // the answer wants.
+  if (top.source?.kind === "guide") {
+    const entry = getGuideEntry(top.source.entryId);
+    if (entry) {
+      const actions = takeActions(entry.whatToDo);
+      return [
+        `**${entry.title}** — ${entry.meaning}`,
+        "",
+        actions.length === 1
+          ? `What to do: ${actions[0]}`
+          : ["What to do:", ...actions.map((a) => `- ${a}`)].join("\n"),
+      ].join("\n");
+    }
   }
 
-  const cues = behavior.card.cues.slice(0, 3).map((c) => `- ${c.part}: ${asCue(c.text)}`);
-  // Neutral lead-in: the question may be a description of something seen, or a
-  // general "what does X mean" — "that looks like…" would only fit the first.
-  return [
-    `**${behavior.card.title}** — ${firstSentence(behavior.card.meaning)}`,
-    "",
-    "Look for:",
-    ...cues,
-    "",
-    `What to do: ${firstSentence(behavior.card.respond[0])}`,
-  ].join("\n");
+  if (top.source?.kind === "behavior") {
+    const behavior = getBehavior(getAnimal(top.source.animalId), top.source.behaviorId);
+    if (behavior) {
+      const cues = behavior.card.cues.slice(0, 3).map((c) => `- ${c.part}: ${asCue(c.text)}`);
+      // Neutral lead-in: the question may be a description of something seen, or
+      // a general "what does X mean" — "that looks like…" only fits the first.
+      return [
+        `**${behavior.card.title}** — ${firstSentence(behavior.card.meaning)}`,
+        "",
+        "Look for:",
+        ...cues,
+        "",
+        `What to do: ${firstSentence(behavior.card.respond[0])}`,
+      ].join("\n");
+    }
+  }
+
+  // A chunk from an external vector store has no structure — excerpt it.
+  return `${firstSentence(top.text)}\n\nFrom **${top.title}**.`;
 }
 
 export async function POST(request: Request) {
@@ -122,7 +162,7 @@ export async function POST(request: Request) {
 
   // Without a key the route still answers, straight from the retrieved material.
   if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ reply: extractiveAnswer(chunks, animal.name), sources });
+    return NextResponse.json({ reply: extractiveAnswer(chunks), sources });
   }
 
   try {
@@ -173,6 +213,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "The API key is invalid." }, { status: 500 });
     }
     // Retrieval worked even though generation did not, so still answer.
-    return NextResponse.json({ reply: extractiveAnswer(chunks, animal.name), sources });
+    return NextResponse.json({ reply: extractiveAnswer(chunks), sources });
   }
 }

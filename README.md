@@ -2,7 +2,9 @@
 
 An interactive 3D web app for learning to read animal body language. Pick a
 behaviour, watch the model take the posture, and read what the signal means and
-how to respond. Ships with the dog; cats and horses are registry entries away.
+how to respond. Ships with a dog, a cat and a horse, and a chat panel that
+answers from a 58-signal reference library covering far more than the models can
+pose.
 
 ```bash
 npm run dev     # http://localhost:3000
@@ -15,7 +17,9 @@ npm run typecheck
 Next.js 15 (App Router) · React 19 · TypeScript · React Three Fiber 9 + drei 10 ·
 three 0.180 · Tailwind CSS 4 · Framer Motion · Zustand
 
-## The model
+## The models
+
+### Dog
 
 A low-poly rigged German Shepherd — 2,272 triangles, 55 bones, with a baked
 31-frame idle-breathing loop. Exported from `New 3D Dog Model.blend`:
@@ -47,6 +51,61 @@ That script fixes five things on the way out, none of which modify the .blend:
    the BSDF so the card silhouettes cut out. **This is a material problem, not a
    UV problem** — the UVs were always correct, there was simply nothing to
    sample. It exports as `alphaMode: BLEND`.
+
+
+### Horse
+
+```bash
+blender -b "../horse.blend" --python tools/export_horse_rig.py
+```
+
+This source needed far more work than the dog. As authored it is a
+work-in-progress sculpt, not a game-ready asset:
+
+- **No skinning at all** — no vertex groups, no armature modifier. The script
+  binds the mesh to the rig with automatic weights (0 unweighted vertices).
+- **The armature is a Rigify *metarig*** — a template. The `hors rig` collection
+  it would have generated into is empty. The metarig is anatomically placed and
+  aligned to the mesh, so it is used directly as the deform rig, with eyes,
+  nostrils, breast markers and mane tufts excluded from deformation.
+- **Three horses in the file.** Collections name them: `curent hors` is the one
+  used, `old horse` and `trush` are dropped.
+- **The mane/tail is a bevelled curve.** It must be converted to mesh *before*
+  its bevel profile (`BezierCircle`) is deleted, or it collapses to bare edges
+  and exports empty.
+- Modifiers are applied **before** weighting: weighting first and mirroring
+  after would flip left/right influence on the mirrored half.
+
+> **The supplied texture cannot be used on this mesh.**
+> `Horse_Chestnut_LessMuscules.tif` is a well-made chestnut atlas — head, legs,
+> hooves and eyes as separate islands — but it was authored for a *different*
+> horse model. This sculpt has its own unwrap occupying a scattered ~35% of the
+> UV square, so the atlas islands land on the wrong body parts: leg and hoof
+> patches smear across the barrel and a bridle paints itself over the face.
+> Flipping V does not help; the islands genuinely do not correspond. The coat is
+> therefore solid colour matched to the atlas chestnut, with a darker mane and
+> tail. To use the real texture the mesh needs unwrapping onto that atlas, or
+> the atlas's original mesh supplied.
+
+Result: 25.5k triangles, **0.39 MB** with Draco.
+
+### Cat
+
+```bash
+blender -b "../cat.blend" --python tools/export_cat_rig.py
+```
+
+The cleanest of the three: already skinned, with UVs and a colour map that
+actually matches its own unwrap. One thing needed fixing:
+
+- **The tail was weighted across three coincident bone chains.** `Bone.023`,
+  `Bone.024` and `Bone.025` (and their children) sit at identical positions and
+  all carry weights, so driving one would have moved roughly a third of the
+  tail. Their weights are merged into the first chain — lossless, since the
+  bones share a rest transform exactly — and the spares removed, leaving a clean
+  5-bone tail. 38 bones become 28.
+
+Result: 1,600 triangles, **77 KB**.
 
 ## How the animation works
 
@@ -85,8 +144,11 @@ time as you author more clips.
 
 ### Local bone axes
 
-Derived empirically — pose the rig in Blender, render, look. They are **inverted**
-from the previous seated model, so old pose values must not be carried across.
+Derived empirically **per rig** — pose it in Blender, render, look. Do not assume
+they carry across: they came out inverted between the dog's two models, and the
+horse's neck axis has no dog equivalent at all.
+
+**Dog**
 
 | Bone group | `+x` | `-x` | `+y` | `+z` |
 |---|---|---|---|---|
@@ -94,6 +156,28 @@ from the previous seated model, so old pose values must not be carried across.
 | `Ear_*` | forward / perked | back / flattened | — | splay |
 | `Chest` / `Spine_*` | crouch, round down | lift and extend | — | sway |
 | `Tail_*` | raise | tuck under | — | lateral swing (the wag) |
+
+**Horse**
+
+| Bone group | `+x` | `-x` | `+z` |
+|---|---|---|---|
+| `Head` | nose down | nose up | tilt |
+| `Neck_*` | raise / arch | lower | — |
+| `Ear_*` | pricked forward | pinned back | splay outward |
+| `Tail_*` | raise | clamp down | lateral swish |
+
+**Cat**
+
+| Bone group | `+x` | `-x` | `+z` |
+|---|---|---|---|
+| `Head` | nose down | nose up | tilt |
+| `Neck` | **lowers / tucks head** | **raises head** | — |
+| `Spine` | front end down (bow) | front end up (rears back) | — |
+| `Ear_*` | forward | pinned back | splay outward |
+| `Tail_*` | raise | tuck under | lateral swish |
+
+Note the cat's `Neck` is inverted relative to the horse's. Assuming otherwise
+shipped two visibly wrong poses before a re-probe caught it.
 
 Local-space rotations are unaffected by glTF's Z-up → Y-up conversion, so values
 validated in Blender transfer directly to three.js.
@@ -115,28 +199,74 @@ Nothing in `src/components` needs to change.
 3. Add it to `ANIMALS` in `src/animals/registry.ts`.
 
 An entry with `status: "coming-soon"` renders as a disabled selector option and
-needs no model or behaviours — that's how Cat and Horse are wired today.
+needs no model or behaviours.
 
 ## The chat panel
 
 `POST /api/chat` → `{ message, animalId, behaviorId, history }`
 → `{ reply, sources[] }`
 
-Retrieval sits behind the `Retriever` interface in `src/lib/rag.ts`:
+### What it knows
 
-- **`LocalRetriever`** (default) — IDF-weighted keyword search over the behaviour
-  cards already in the registry, with suffix stemming so "wagging" matches "wag".
-  Works with zero setup.
-- **`VectorRetriever`** — the seam for the PDF vector database. Implement
+Two corpora are indexed side by side:
+
+- **Behaviour cards** from the animal registry — tied to poses the rigs can
+  actually show, so there are only six per species.
+- **`src/knowledge/guide.ts`** — 58 signals transcribed from the supplied
+  reference document (19 horse, 24 cat, 15 dog), each with what it means and
+  what to do. This is where purring, hissing, kneading, yawning, flehmen,
+  bolting and the rest live: things readers ask about constantly that no rig can
+  demonstrate. Entries carry a `page`, which becomes the citation chip.
+
+Adding to the guide is pure data — append a `GuideEntry` and it is searchable.
+
+### Retrieval
+
+Behind the `Retriever` interface in `src/lib/rag.ts`:
+
+- **`LocalRetriever`** (default) — BM25 over both corpora, with suffix stemming
+  so "wagging" matches "wag". Works with zero setup.
+- **`VectorRetriever`** — the seam for an embedding-backed store. Implement
   `retrieve()`, carry `title`/`page` through for citations, and set
   `RAG_BACKEND=vector`. Nothing else changes.
 
-Answers are kept deliberately short — one plain sentence, up to three cues, one
-action. With `ANTHROPIC_API_KEY` set, retrieved chunks go to Claude
-(`claude-opus-5`) under a system prompt that enforces that shape and a 90-word
-cap. Without a key the route answers extractively in the same shape, though it
-can only surface the single best-matching entry rather than reasoning across all
-of them.
+Three details were each load-bearing, found by sweeping every signal in the
+guide as a query and checking the top hit:
+
+- **BM25 length normalisation, not raw term counts.** Behaviour cards are several
+  times longer than guide entries, so unnormalised term frequency let them win on
+  bulk alone. "Horse pins its ears back" returned *Listening / Attentive* — whose
+  tagline happens to read "Ears back does NOT mean angry" — instead of *Both Ears
+  Pinned Back*, which is anger and the answer that matters for safety.
+- **A separate boost for the signal's own name.** Matching a title is much
+  stronger evidence than matching a word buried in prose.
+- **Hyphens split.** Keeping them made `Belly-Up` a single token that a search
+  for "belly up" could never match.
+
+Synonyms live in a `keywords` field that is indexed but never rendered, so
+"hackles" finds *Fur Standing on End* without the word appearing in the answer.
+Keywords deliberately do **not** earn the title boost — when they did, "belly up"
+matched *Rolling on the Floor*, which merely lists "belly" as a keyword.
+
+### Answers
+
+Kept deliberately short — one plain sentence, up to three cues, one or two
+actions. With `ANTHROPIC_API_KEY` set, retrieved chunks go to Claude
+(`claude-opus-5`) under a system prompt enforcing that shape and a 90-word cap.
+Without a key the route answers extractively in the same shape, though it can
+only surface the single best-matching entry rather than reasoning across all of
+them.
+
+`ChatPanel` renders `**bold**` and `- ` bullets itself (`RichText`) rather than
+dumping raw text into a `<p>` — otherwise every answer showed its own asterisks.
+It is about thirty lines and handles exactly those two rules; anything else
+passes through as plain text.
+
+Two guide entries have their advice **reordered** relative to the source
+document: *Rearing* and *Bucking* both open with the foals-in-a-pasture case,
+which meant someone asking "the horse reared up, what do I do" was told to enjoy
+the view from outside the fence. The safety branch now leads. No branch was
+dropped.
 
 ```bash
 # optional
