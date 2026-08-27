@@ -13,6 +13,7 @@ import {
 import * as THREE from "three";
 import type { Animal, Behavior, FocusSpec } from "@/animals/types";
 import { AnimalRig } from "./AnimalRig";
+import { ModelErrorBoundary } from "./ModelErrorBoundary";
 import type { PoseMixer } from "@/lib/poseEngine";
 
 /** Default framing used before any behaviour is picked. */
@@ -82,10 +83,12 @@ function Scene({
   animal,
   behavior,
   onReady,
+  onModelError,
 }: {
   animal: Animal;
   behavior: Behavior | null;
   onReady: () => void;
+  onModelError: (error: Error) => void;
 }) {
   const controls = useRef<CameraControls>(null!);
   const [rig, setRig] = useState<RigInfo | null>(null);
@@ -158,9 +161,15 @@ function Scene({
         <Lightformer intensity={0.7} position={[4, 1, 3]} scale={[6, 6, 1]} color="#ffffff" />
       </Environment>
 
-      <Suspense fallback={<Loader />}>
-        <AnimalRig animal={animal} behavior={behavior} onReady={handleReady} />
-      </Suspense>
+      {/*
+        Boundary OUTSIDE Suspense: a rejected model fetch throws on the retry
+        render, which Suspense re-raises rather than handling.
+      */}
+      <ModelErrorBoundary onError={onModelError} resetKey={animal.model?.url ?? animal.id}>
+        <Suspense fallback={<Loader />}>
+          <AnimalRig animal={animal} behavior={behavior} onReady={handleReady} />
+        </Suspense>
+      </ModelErrorBoundary>
 
       <ContactShadows position={[0, 0.005, 0]} opacity={0.42} scale={11} blur={2.8} far={5} resolution={1024} />
     </>
@@ -169,7 +178,15 @@ function Scene({
 
 export function Viewport({ animal, behavior }: { animal: Animal; behavior: Behavior | null }) {
   const [ready, setReady] = useState(false);
+  const [modelError, setModelError] = useState<Error | null>(null);
   const onReady = useCallback(() => setReady(true), []);
+  const onModelError = useCallback((error: Error) => setModelError(error), []);
+
+  // Clear a previous species' failure when switching animals.
+  useEffect(() => {
+    setModelError(null);
+    setReady(false);
+  }, [animal.id]);
 
   if (!animal.model) {
     return (
@@ -202,8 +219,30 @@ export function Viewport({ animal, behavior }: { animal: Animal; behavior: Behav
         }}
         camera={{ position: [1.67, 1.6, 3.05], fov: 38, near: 0.1, far: 100 }}
       >
-        <Scene animal={animal} behavior={behavior} onReady={onReady} />
+        <Scene
+          animal={animal}
+          behavior={behavior}
+          onReady={onReady}
+          onModelError={onModelError}
+        />
       </Canvas>
+
+      {modelError && (
+        // z-10 clears the canvas, which globals.css puts at z-index 1.
+        <div className="absolute inset-0 z-10 grid place-items-center p-6">
+          <div className="surface-raised max-w-sm rounded-2xl px-6 py-6 text-center">
+            <div className="mb-2 text-3xl">{animal.icon}</div>
+            <h3 className="text-base font-semibold">
+              The {animal.name.toLowerCase()} model didn&apos;t load
+            </h3>
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              <code className="text-[0.78rem]">{animal.model?.url}</code> could not be
+              fetched. If this is a deployed build, check that the file was committed —
+              everything else on the page still works.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className={`viewport-hint ${ready ? "" : "opacity-0"}`}>
         <span>Drag to orbit</span>
