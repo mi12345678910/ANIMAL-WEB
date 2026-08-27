@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import type { Animal, Tone } from "@/animals/types";
 import { useApp } from "@/lib/store";
+import { useT } from "@/i18n/useT";
 
 const TONE_VAR: Record<Tone, string> = {
   positive: "var(--tone-positive)",
@@ -14,25 +15,26 @@ const TONE_VAR: Record<Tone, string> = {
 export function BehaviorPanel({ animal }: { animal: Animal }) {
   const behaviorId = useApp((s) => s.behaviorId);
   const setBehavior = useApp((s) => s.setBehavior);
+  const t = useT();
 
   if (!animal.behaviors.length) {
     return (
       <div className="glass rounded-2xl p-5 text-sm text-[var(--muted)]">
-        No behaviours are defined for {animal.name} yet.
+        {t.noBehaviours(animal.name)}
       </div>
     );
   }
 
   return (
-    <section aria-label="Behaviours">
+    <section aria-label={t.behaviours}>
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">Behaviours</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">{t.behaviours}</h2>
         {behaviorId && (
           <button
             onClick={() => setBehavior(behaviorId)}
             className="focusable text-[0.68rem] text-[var(--muted)] underline-offset-2 hover:underline"
           >
-            Reset
+            {t.reset}
           </button>
         )}
       </div>
@@ -76,8 +78,7 @@ export function BehaviorPanel({ animal }: { animal: Animal }) {
       </div>
 
       <p className="mt-3 text-[0.68rem] leading-relaxed text-[var(--muted)]">
-        Pick a behaviour to pose the model and open its explanation. The camera moves to whichever body part
-        carries the signal.
+        {t.behaviourHint}
       </p>
     </section>
   );

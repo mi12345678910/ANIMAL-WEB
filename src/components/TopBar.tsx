@@ -3,10 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ANIMALS } from "@/animals/registry";
+import { localizeAnimal } from "@/i18n/localize";
 import type { Animal } from "@/animals/types";
 import { useApp } from "@/lib/store";
+import { useT } from "@/i18n/useT";
+import { LOCALES, LOCALE_LABEL } from "@/i18n/config";
 
 function ThemeToggle() {
+  const t = useT();
   const [theme, setTheme] = useState<"light" | "dark">("dark");
 
   useEffect(() => {
@@ -29,15 +33,52 @@ function ThemeToggle() {
     <button
       onClick={toggle}
       className="focusable glass grid h-10 w-10 place-items-center rounded-xl text-base transition hover:scale-105 active:scale-95"
-      aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-      title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+      aria-label={theme === "dark" ? t.switchToLight : t.switchToDark}
+      title={theme === "dark" ? t.switchToLight : t.switchToDark}
     >
       {theme === "dark" ? "☀️" : "\u{1F319}"}
     </button>
   );
 }
 
+/**
+ * Two locales fit as a segmented control, which shows the alternative without a
+ * click — better than a dropdown that hides "中文" behind a globe icon.
+ */
+function LanguageToggle() {
+  const t = useT();
+  const locale = useApp((s) => s.locale);
+  const setLocale = useApp((s) => s.setLocale);
+
+  return (
+    <div
+      className="glass flex h-10 items-center gap-0.5 rounded-xl p-1"
+      role="group"
+      aria-label={t.language}
+    >
+      {LOCALES.map((l) => {
+        const active = l === locale;
+        return (
+          <button
+            key={l}
+            onClick={() => setLocale(l)}
+            aria-pressed={active}
+            lang={l === "zh" ? "zh-Hans" : "en"}
+            className={`focusable rounded-lg px-2.5 py-1 text-xs font-medium transition ${
+              active ? "accent-bg" : "text-[var(--muted)] hover:text-[var(--fg)]"
+            }`}
+          >
+            {LOCALE_LABEL[l]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function AnimalSelector({ animal }: { animal: Animal }) {
+  const t = useT();
+  const locale = useApp((s) => s.locale);
   const [open, setOpen] = useState(false);
   const setAnimal = useApp((s) => s.setAnimal);
   const ref = useRef<HTMLDivElement>(null);
@@ -63,6 +104,7 @@ function AnimalSelector({ animal }: { animal: Animal }) {
         className="focusable glass flex items-center gap-3 rounded-xl px-3 py-2 transition hover:brightness-110"
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-label={t.chooseSpecies}
       >
         <span className="text-xl leading-none">{animal.icon}</span>
         <span className="text-left">
@@ -89,7 +131,10 @@ function AnimalSelector({ animal }: { animal: Animal }) {
             transition={{ duration: 0.16, ease: "easeOut" }}
             className="glass-strong absolute left-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-2xl p-1.5"
           >
-            {ANIMALS.map((a) => {
+            {ANIMALS.map((raw) => {
+              // Options list every species, so each row needs translating here
+              // rather than relying on the one localised animal from the page.
+              const a = localizeAnimal(raw, locale);
               const disabled = a.status === "coming-soon";
               const active = a.id === animal.id;
               return (
@@ -118,7 +163,7 @@ function AnimalSelector({ animal }: { animal: Animal }) {
                     </span>
                     {disabled ? (
                       <span className="rounded-full border border-[var(--glass-border)] px-2 py-0.5 text-[0.6rem] uppercase tracking-wide text-[var(--muted)]">
-                        Soon
+                        {t.comingSoonBadge}
                       </span>
                     ) : active ? (
                       <span className="text-xs text-[var(--accent)]">●</span>
@@ -135,6 +180,7 @@ function AnimalSelector({ animal }: { animal: Animal }) {
 }
 
 export function TopBar({ animal }: { animal: Animal }) {
+  const t = useT();
   const { panelOpen, togglePanel, chatOpen, toggleChat } = useApp();
 
   return (
@@ -147,8 +193,8 @@ export function TopBar({ animal }: { animal: Animal }) {
           🐾
         </div>
         <div className="hidden sm:block">
-          <h1 className="text-sm font-semibold leading-tight">Body Language Lab</h1>
-          <p className="text-[0.68rem] leading-tight text-[var(--muted)]">Read the signals, not the stereotype</p>
+          <h1 className="text-sm font-semibold leading-tight">{t.appTitle}</h1>
+          <p className="text-[0.68rem] leading-tight text-[var(--muted)]">{t.appTagline}</p>
         </div>
       </div>
 
@@ -160,7 +206,7 @@ export function TopBar({ animal }: { animal: Animal }) {
           className="focusable glass hidden h-10 items-center gap-2 rounded-xl px-3 text-xs font-medium transition hover:brightness-110 lg:flex"
           aria-pressed={panelOpen}
         >
-          {panelOpen ? "Hide" : "Show"} panel
+          {panelOpen ? t.hidePanel : t.showPanel}
         </button>
         <button
           onClick={toggleChat}
@@ -168,8 +214,9 @@ export function TopBar({ animal }: { animal: Animal }) {
           aria-pressed={chatOpen}
         >
           <span aria-hidden>💬</span>
-          <span className="hidden sm:inline">Ask</span>
+          <span className="hidden sm:inline">{t.ask}</span>
         </button>
+        <LanguageToggle />
         <ThemeToggle />
       </div>
     </header>

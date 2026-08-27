@@ -2,7 +2,7 @@
 
 An interactive 3D web app for learning to read animal body language. Pick a
 behaviour, watch the model take the posture, and read what the signal means and
-how to respond. Ships with a dog, a cat and a horse — plus hamster and bird
+how to respond. English and 简体中文. Ships with a dog, a cat and a horse — plus hamster and bird
 listed as "Soon" placeholders — and a chat panel that answers from a 58-signal
 reference library covering far more than the models can pose.
 
@@ -276,6 +276,57 @@ dropped.
 ANTHROPIC_API_KEY=sk-ant-...
 RAG_BACKEND=vector
 ```
+
+## Languages
+
+English and Simplified Chinese, switchable from the header. The choice persists
+in `localStorage` and sets `<html lang>`.
+
+English is the single source of truth. Every translatable string lives in
+English in its original file, and Chinese arrives as an **overlay keyed by a
+stable id** (`src/i18n/content/animals.zh.ts`, `guide.zh.ts`), merged by
+`src/i18n/localize.ts`. Nothing in `src/animals/` or `src/knowledge/` changed to
+add a language. Fallback is **per field**, so a half-translated entry shows
+Chinese where it exists and English elsewhere rather than going blank.
+
+UI chrome lives in `src/i18n/strings.ts`. `zh` is typed as `typeof en`, so a
+missing key or a changed interpolation signature is a compile error, not a
+string that silently stays English.
+
+`page.tsx` localises the animal once and passes it down, so no component knows
+that translation exists — they just render `animal.name` and `card.meaning`.
+
+### Searching Chinese
+
+The retriever indexes **both languages into one index**, not one index per
+locale. A reader browsing in Chinese may still type an English term, and a
+single index means a document cannot rank differently depending on which
+language the question used. Only the returned title and passage are
+locale-specific.
+
+Chinese is not whitespace-delimited, so CJK runs are indexed as **unigrams plus
+overlapping bigrams**, with grammatical particles (的了是在…) stripped first.
+Three things had to be right:
+
+- **The tokenizer had to stop discarding CJK.** It replaced everything outside
+  `[a-z0-9]` with a space, so Chinese vanished entirely and every Chinese query
+  matched nothing.
+- **Bigrams alone are too brittle.** Stripping particles makes originally
+  distant characters adjacent, and a query and a document can end up bridged
+  differently — "狗舔我的脸" becomes 狗舔/舔脸 while "舔你的手和脸" becomes
+  舔手/手脸, sharing nothing. That query returned **zero** results until
+  unigrams were added as a fallback overlap.
+- **Sentence splitting is language-specific.** Chinese ends sentences with 。！？
+  and puts no space after them, so the English "punctuation followed by
+  whitespace" pattern never matched and a whole paragraph came back as one
+  sentence.
+
+Answers follow the same language as the UI: the extractive path reads the
+translated fields, and the model path gets an explicit language rule including
+the section labels (观察这些：/ 该怎么做：) and full-width punctuation.
+
+Colloquial Chinese search terms (炸毛, 哈气, 踩奶, 猫饼) live in a `keywords`
+field that is indexed but never rendered.
 
 ## Palette
 

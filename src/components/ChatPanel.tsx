@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Animal } from "@/animals/types";
 import { useApp, type ChatMessage } from "@/lib/store";
+import { useT } from "@/i18n/useT";
+import type { Strings } from "@/i18n/strings";
 
 /**
  * `crypto.randomUUID` only exists in a secure context. Opening the dev server
@@ -80,8 +82,9 @@ function RichText({ text }: { text: string }) {
 }
 
 function TypingIndicator() {
+  const t = useT();
   return (
-    <div className="flex items-center gap-1 px-1 py-1.5" aria-label="Assistant is typing">
+    <div className="flex items-center gap-1 px-1 py-1.5" aria-label={t.assistantTyping}>
       {[0, 1, 2].map((i) => (
         <span
           key={i}
@@ -93,7 +96,7 @@ function TypingIndicator() {
   );
 }
 
-function Bubble({ message }: { message: ChatMessage }) {
+function Bubble({ message, t }: { message: ChatMessage; t: Strings }) {
   const isUser = message.role === "user";
   return (
     <motion.div
@@ -124,7 +127,7 @@ function Bubble({ message }: { message: ChatMessage }) {
                     className="accent-chip rounded-md px-1.5 py-0.5 text-[0.6rem]"
                   >
                     {s.title}
-                    {s.page ? ` · p.${s.page}` : ""}
+                    {s.page ? t.sourcePage(s.page) : ""}
                   </span>
                 ))}
               </div>
@@ -139,6 +142,8 @@ function Bubble({ message }: { message: ChatMessage }) {
 export function ChatPanel({ animal }: { animal: Animal }) {
   const { chatOpen, toggleChat, messages, addMessage, updateMessage, chatBusy, setChatBusy } = useApp();
   const behaviorId = useApp((s) => s.behaviorId);
+  const locale = useApp((s) => s.locale);
+  const t = useT();
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -194,6 +199,9 @@ export function ChatPanel({ animal }: { animal: Animal }) {
             // Context so the RAG backend can bias retrieval toward what the
             // user is currently looking at.
             behaviorId,
+            // The answer's language, not just the UI's — the route picks the
+            // translated card fields and tells the model which language to use.
+            locale,
             history,
           }),
         });
@@ -201,16 +209,13 @@ export function ChatPanel({ animal }: { animal: Animal }) {
         if (!res.ok) throw new Error(`Request failed (${res.status})`);
         const data = await res.json();
         updateMessage(pendingId, {
-          content: data.reply ?? "No response.",
+          content: data.reply ?? t.noResponse,
           sources: data.sources,
           pending: false,
         });
       } catch (err) {
         updateMessage(pendingId, {
-          content:
-            err instanceof Error
-              ? `Sorry — I couldn't reach the knowledge base. (${err.message})`
-              : "Sorry — something went wrong.",
+          content: err instanceof Error ? t.chatUnreachable(err.message) : t.chatFailed,
           pending: false,
         });
       } finally {
@@ -220,7 +225,7 @@ export function ChatPanel({ animal }: { animal: Animal }) {
         inputRef.current?.focus();
       }
     },
-    [addMessage, updateMessage, setChatBusy, animal.id, behaviorId],
+    [addMessage, updateMessage, setChatBusy, animal.id, behaviorId, locale, t],
   );
 
   return (
@@ -232,7 +237,7 @@ export function ChatPanel({ animal }: { animal: Animal }) {
           exit={{ opacity: 0, y: 24, scale: 0.97 }}
           transition={{ duration: 0.24, ease: "easeOut" }}
           className="surface pointer-events-auto flex h-[min(30rem,72vh)] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl"
-          aria-label="Knowledge chat"
+          aria-label={t.chatAriaLabel}
         >
           <header className="flex items-center gap-2.5 border-b border-[var(--surface-border)] px-4 py-3">
             <span
@@ -242,16 +247,16 @@ export function ChatPanel({ animal }: { animal: Animal }) {
             </span>
             <div className="flex-1">
               <h3 className="text-[0.8rem] font-semibold leading-tight">
-                Ask about {animal.name.toLowerCase()}s
+                {t.chatHeading(animal.name)}
               </h3>
               <p className="text-[0.62rem] leading-tight text-[var(--muted)]">
-                Answers from the reference library
+                {t.chatSubheading}
               </p>
             </div>
             <button
               onClick={toggleChat}
               className="focusable grid h-7 w-7 place-items-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--accent-soft)]"
-              aria-label="Close chat"
+              aria-label={t.closeChat}
             >
               ✕
             </button>
@@ -260,12 +265,11 @@ export function ChatPanel({ animal }: { animal: Animal }) {
           <div ref={scrollRef} className="scroll-slim flex-1 space-y-2.5 overflow-y-auto px-4 py-3.5">
             {messages.length === 0 && (
               <p className="pt-2 text-center text-[0.78rem] leading-relaxed text-[var(--muted)]">
-                Ask anything about {animal.name.toLowerCase()} body language — what a signal means, or
-                what to do about it.
+                {t.chatEmpty(animal.name)}
               </p>
             )}
             {messages.map((m) => (
-              <Bubble key={m.id} message={m} />
+              <Bubble key={m.id} message={m} t={t} />
             ))}
           </div>
 
@@ -307,7 +311,7 @@ export function ChatPanel({ animal }: { animal: Animal }) {
                   send(input);
                 }
               }}
-              placeholder={chatBusy ? "Thinking…" : "Ask a question…"}
+              placeholder={chatBusy ? t.chatThinking : t.chatPlaceholder}
               // Deliberately never disabled: the user can keep typing their next
               // question while an answer is still streaming back.
               className="scroll-slim max-h-24 flex-1 resize-none rounded-xl border border-[var(--surface-border)] bg-transparent px-3 py-2 text-[0.82rem] text-[var(--fg)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
@@ -316,7 +320,7 @@ export function ChatPanel({ animal }: { animal: Animal }) {
               type="submit"
               disabled={!input.trim() || chatBusy}
               className="accent-bg focusable grid h-9 w-9 shrink-0 place-items-center rounded-xl transition disabled:opacity-35"
-              aria-label="Send message"
+              aria-label={t.sendMessage}
             >
               ↑
             </button>

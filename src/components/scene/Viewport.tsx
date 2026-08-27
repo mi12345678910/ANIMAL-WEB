@@ -14,6 +14,7 @@ import * as THREE from "three";
 import type { Animal, Behavior, FocusSpec } from "@/animals/types";
 import { AnimalRig } from "./AnimalRig";
 import { ModelErrorBoundary } from "./ModelErrorBoundary";
+import { useT } from "@/i18n/useT";
 import type { PoseMixer } from "@/lib/poseEngine";
 
 /** Default framing used before any behaviour is picked. */
@@ -60,6 +61,7 @@ function resolveLookAt(focus: FocusSpec, rig: RigInfo | null): [number, number, 
 }
 
 function Loader() {
+  const t = useT();
   const { progress } = useProgress();
   return (
     <Html center>
@@ -72,7 +74,7 @@ function Loader() {
         </div>
         {/* Sits on the light stage, so use theme text rather than white. */}
         <span className="text-xs tracking-wide text-[var(--muted)]">
-          Loading model {Math.round(progress)}%
+          {t.loadingModel(Math.round(progress))}
         </span>
       </div>
     </Html>
@@ -177,6 +179,7 @@ function Scene({
 }
 
 export function Viewport({ animal, behavior }: { animal: Animal; behavior: Behavior | null }) {
+  const t = useT();
   const [ready, setReady] = useState(false);
   const [modelError, setModelError] = useState<Error | null>(null);
   const onReady = useCallback(() => setReady(true), []);
@@ -193,9 +196,9 @@ export function Viewport({ animal, behavior }: { animal: Animal; behavior: Behav
       <div className="flex h-full w-full items-center justify-center">
         <div className="glass max-w-sm rounded-2xl px-8 py-10 text-center">
           <div className="mb-3 text-5xl">{animal.icon}</div>
-          <h3 className="text-lg font-semibold">{animal.name} is coming soon</h3>
+          <h3 className="text-lg font-semibold">{t.speciesComingSoon(animal.name)}</h3>
           <p className="mt-2 text-sm text-[var(--muted)]">
-            The {animal.name.toLowerCase()} module is not available yet. Switch back to Dog to keep exploring.
+            {t.speciesComingSoonBody(animal.name)}
           </p>
         </div>
       </div>
@@ -232,24 +235,20 @@ export function Viewport({ animal, behavior }: { animal: Animal; behavior: Behav
         <div className="absolute inset-0 z-10 grid place-items-center p-6">
           <div className="surface-raised max-w-sm rounded-2xl px-6 py-6 text-center">
             <div className="mb-2 text-3xl">{animal.icon}</div>
-            <h3 className="text-base font-semibold">
-              The {animal.name.toLowerCase()} model didn&apos;t load
-            </h3>
+            <h3 className="text-base font-semibold">{t.modelFailedTitle(animal.name)}</h3>
             <p className="mt-2 text-sm text-[var(--muted)]">
-              <code className="text-[0.78rem]">{animal.model?.url}</code> could not be
-              fetched. If this is a deployed build, check that the file was committed —
-              everything else on the page still works.
+              {t.modelFailedBody(animal.model?.url ?? "")}
             </p>
           </div>
         </div>
       )}
 
       <div className={`viewport-hint ${ready ? "" : "opacity-0"}`}>
-        <span>Drag to orbit</span>
+        <span>{t.dragToOrbit}</span>
         <span aria-hidden>·</span>
-        <span>Scroll to zoom</span>
+        <span>{t.scrollToZoom}</span>
         <span aria-hidden>·</span>
-        <span>Right-drag to pan</span>
+        <span>{t.rightDragToPan}</span>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { DEFAULT_ANIMAL_ID } from "@/animals/registry";
+import { DEFAULT_LOCALE, HTML_LANG, LOCALE_STORAGE_KEY, type Locale } from "@/i18n/config";
 
 export interface ChatMessage {
   id: string;
@@ -13,6 +14,7 @@ export interface ChatMessage {
 }
 
 interface AppState {
+  locale: Locale;
   animalId: string;
   behaviorId: string | null;
   modelReady: boolean;
@@ -21,6 +23,7 @@ interface AppState {
   messages: ChatMessage[];
   chatBusy: boolean;
 
+  setLocale: (locale: Locale) => void;
   setAnimal: (id: string) => void;
   setBehavior: (id: string | null) => void;
   setModelReady: (ready: boolean) => void;
@@ -33,6 +36,10 @@ interface AppState {
 }
 
 export const useApp = create<AppState>((set) => ({
+  // Always the default on first render. The real choice is read from storage in
+  // a client effect (`LocaleSync`), because reading it during render would make
+  // the server and client markup disagree and break hydration.
+  locale: DEFAULT_LOCALE,
   animalId: DEFAULT_ANIMAL_ID,
   behaviorId: null,
   modelReady: false,
@@ -41,6 +48,18 @@ export const useApp = create<AppState>((set) => ({
   messages: [],
   chatBusy: false,
 
+  setLocale: (locale) =>
+    set(() => {
+      try {
+        localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+      } catch {
+        /* storage unavailable — the switch still applies for this session */
+      }
+      if (typeof document !== "undefined") document.documentElement.lang = HTML_LANG[locale];
+      // Answers already on screen are in the previous language and cannot be
+      // retranslated, so clear the transcript rather than leave it mixed.
+      return { locale, messages: [] };
+    }),
   setAnimal: (id) => set({ animalId: id, behaviorId: null, modelReady: false, messages: [] }),
   setBehavior: (id) => set((s) => ({ behaviorId: s.behaviorId === id ? null : id })),
   setModelReady: (modelReady) => set({ modelReady }),

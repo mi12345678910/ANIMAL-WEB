@@ -25,7 +25,11 @@ export const viewport: Viewport = {
 const themeInit = `(function(){try{
   var s = localStorage.getItem('bll-theme');
   document.documentElement.setAttribute('data-theme', s || 'light');
-}catch(e){document.documentElement.setAttribute('data-theme','light');}})();`;
+}catch(e){document.documentElement.setAttribute('data-theme','light');}
+try{
+  var l = localStorage.getItem('bll-locale');
+  if (l === 'zh') document.documentElement.lang = 'zh-Hans';
+}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

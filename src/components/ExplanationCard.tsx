@@ -2,6 +2,8 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import type { Behavior, Tone } from "@/animals/types";
+import { useT } from "@/i18n/useT";
+import type { Strings } from "@/i18n/strings";
 
 const TONE_VAR: Record<Tone, string> = {
   positive: "var(--tone-positive)",
@@ -10,12 +12,12 @@ const TONE_VAR: Record<Tone, string> = {
   alert: "var(--tone-alert)",
 };
 
-const TONE_LABEL: Record<Tone, string> = {
-  positive: "Comfortable",
-  neutral: "Aroused",
-  caution: "Stressed",
-  alert: "Needs space",
-};
+const toneLabel = (t: Strings): Record<Tone, string> => ({
+  positive: t.toneComfortable,
+  neutral: t.toneAroused,
+  caution: t.toneStressed,
+  alert: t.toneNeedsSpace,
+});
 
 /** Staggered reveal so the card assembles rather than popping in. */
 const container = {
@@ -28,6 +30,8 @@ const item = {
 };
 
 export function ExplanationCard({ behavior }: { behavior: Behavior | null }) {
+  const t = useT();
+  const TONE_LABEL = toneLabel(t);
   return (
     <AnimatePresence mode="wait">
       {behavior ? (
@@ -63,7 +67,7 @@ export function ExplanationCard({ behavior }: { behavior: Behavior | null }) {
 
             <motion.section variants={item} className="mt-5">
               <h4 className="mb-2 text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
-                Key visual cues
+                {t.keyVisualCues}
               </h4>
               <ul className="space-y-2">
                 {behavior.card.cues.map((cue) => (
@@ -81,14 +85,14 @@ export function ExplanationCard({ behavior }: { behavior: Behavior | null }) {
 
             <motion.section variants={item} className="mt-5">
               <h4 className="mb-2 text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
-                What it means
+                {t.whatItMeans}
               </h4>
               <p className="text-[0.8rem] leading-relaxed text-[var(--fg)]/85">{behavior.card.meaning}</p>
             </motion.section>
 
             <motion.section variants={item} className="mt-5">
               <h4 className="mb-2 text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
-                How to respond
+                {t.howToRespond}
               </h4>
               <ul className="space-y-1.5">
                 {behavior.card.respond.map((r, i) => (
@@ -111,7 +115,7 @@ export function ExplanationCard({ behavior }: { behavior: Behavior | null }) {
               >
                 <h4 className="mb-1 flex items-center gap-1.5 text-[0.66rem] font-semibold uppercase tracking-[0.14em]"
                     style={{ color: "var(--tone-alert)" }}>
-                  <span aria-hidden>⚠</span> Avoid
+                  <span aria-hidden>⚠</span> {t.avoid}
                 </h4>
                 <p className="text-[0.78rem] leading-relaxed text-[var(--fg)]/85">{behavior.card.avoid}</p>
               </motion.aside>
@@ -129,10 +133,9 @@ export function ExplanationCard({ behavior }: { behavior: Behavior | null }) {
           <div className="mb-2 text-3xl" aria-hidden>
             👋
           </div>
-          <h3 className="text-sm font-semibold">Pick a behaviour to begin</h3>
+          <h3 className="text-sm font-semibold">{t.emptyCardTitle}</h3>
           <p className="mt-1.5 text-[0.78rem] leading-relaxed text-[var(--muted)]">
-            Each one poses the model, moves the camera to the body part that matters, and explains what the
-            signal means and how to respond.
+            {t.emptyCardBody}
           </p>
         </motion.div>
       )}
